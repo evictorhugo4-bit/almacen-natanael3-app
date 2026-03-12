@@ -8184,26 +8184,27 @@ container.innerHTML = filtradasOrdenadas.map((c, idx) => {
                 // Ofrecer subir ticket
                 const input = document.createElement('input');
                 input.type = 'file'; input.accept = 'image/*'; input.capture = 'environment';
+                document.body.appendChild(input);
                 input.onchange = function() {
-                    const file = input.files[0]; if (!file) return;
+                    const file = input.files[0];
+                    document.body.removeChild(input);
+                    if (!file) { mostrarToast('Sin imagen'); return; }
+                    mostrarToast('Procesando imagen...');
                     const reader = new FileReader();
+                    reader.onerror = function() { mostrarToast('✗ Error leyendo imagen'); };
                     reader.onload = function(ev) {
                         const dataUrl = ev.target.result;
+                        if (!dataUrl || !dataUrl.startsWith('data:')) { mostrarToast('✗ Imagen inválida'); return; }
                         c.ticket = dataUrl;
-                        // Guardar en el sheet
-                        fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, ticket:dataUrl, _soloTicket:true }) });
-                        mostrarToast('✓ Ticket guardado');
-                        // Mostrar
+                        // Mostrar primero
                         const overlay = document.getElementById('modalTicketViewer');
                         const inner   = document.getElementById('ticketViewerInner');
                         const titulo  = document.getElementById('ticketViewerTitulo');
                         titulo.textContent = 'TICKET — ' + (c.proveedor||'').toUpperCase();
-                        if (dataUrl.startsWith('data:application/pdf')) {
-                            inner.innerHTML = `<iframe src="${dataUrl}" style="width:100%;height:70vh;border:none;border-radius:8px;"></iframe>`;
-                        } else {
-                            inner.innerHTML = `<img src="${dataUrl}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
-                        }
+                        inner.innerHTML = `<img src="${dataUrl}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
                         overlay.classList.remove('hidden'); overlay.style.display = 'flex';
+                        // Luego guardar en sheet
+                        fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, ticket:dataUrl, _soloTicket:true }) });
                     };
                     reader.readAsDataURL(file);
                 };
@@ -10535,8 +10536,8 @@ function verDetalleProveedor(tipo, id){
 
         // SINCRONIZACIÓN GOOGLE SHEETS — Tiempo real (30s)
         // ══════════════════════════════════════════════════════
-        const SHEETS_URL  = 'https://script.google.com/macros/s/AKfycbz07SgKxQYk4xEEs4SVRopmeSvEIVOkzTN4vToBVGLhMpCnLLSnphv1ysXd8rzGjIno/exec';
-        const SHEETS_URL2 = 'https://script.google.com/macros/s/AKfycbz07SgKxQYk4xEEs4SVRopmeSvEIVOkzTN4vToBVGLhMpCnLLSnphv1ysXd8rzGjIno/exec';
+        const SHEETS_URL  = 'https://script.google.com/macros/s/AKfycbyCByYXgJ9-wzrQ65-oPoEbLvCQ7cc8G6uiwfxw9LFvHUJI2BQ_q3oSz3DqdpBMbK99/exec';
+        const SHEETS_URL2 = 'https://script.google.com/macros/s/AKfycbyCByYXgJ9-wzrQ65-oPoEbLvCQ7cc8G6uiwfxw9LFvHUJI2BQ_q3oSz3DqdpBMbK99/exec';
         function fetchSheets(options) {
             if (!options || options.method !== 'POST') {
                 fetch(SHEETS_URL2).catch(()=>{});
