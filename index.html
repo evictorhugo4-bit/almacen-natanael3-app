@@ -8176,42 +8176,38 @@ container.innerHTML = filtradasOrdenadas.map((c, idx) => {
             
         }
 
+        // Handler global para cuando se captura una foto de ticket
+        window._ticketCompraActual = null;
+        window._onTicketCapturado = function(input) {
+            const file = input.files && input.files[0];
+            input.value = '';
+            if (!file) return;
+            const c = window._ticketCompraActual;
+            if (!c) return;
+            mostrarToast('📷 Procesando...');
+            const reader = new FileReader();
+            reader.onerror = () => mostrarToast('✗ Error leyendo imagen');
+            reader.onload = function(ev) {
+                const dataUrl = ev.target.result;
+                c.ticket = dataUrl;
+                const overlay = document.getElementById('modalTicketViewer');
+                const inner   = document.getElementById('ticketViewerInner');
+                const titulo  = document.getElementById('ticketViewerTitulo');
+                titulo.textContent = 'TICKET — ' + (c.proveedor||'').toUpperCase();
+                inner.innerHTML = `<img src="${dataUrl}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
+                overlay.classList.remove('hidden'); overlay.style.display = 'flex';
+                mostrarToast('✓ Guardando ticket...');
+                fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, ticket:dataUrl, _soloTicket:true }) });
+            };
+            reader.readAsDataURL(file);
+        };
+
         window.verTicketCompraById = function(idC) {
             let c = _sheetCompras.find(x => String(x.id||'').trim() === String(idC).trim());
             if (!c) { mostrarToast('Compra no encontrada'); return; }
             if (!c.ticket) {
-                // Crear input nuevo cada vez (único método confiable en móvil)
-                const viejo = document.getElementById('_ticketInput');
-                if (viejo) viejo.remove();
-                const inp = document.createElement('input');
-                inp.id = '_ticketInput';
-                inp.type = 'file';
-                inp.accept = 'image/*';
-                inp.capture = 'environment';
-                inp.style.cssText = 'position:fixed;bottom:0;left:0;width:100%;height:60px;opacity:0.01;z-index:99999;';
-                document.body.appendChild(inp);
-                inp.addEventListener('change', function() {
-                    const file = inp.files && inp.files[0];
-                    inp.remove();
-                    mostrarToast(file ? '📷 ' + Math.round(file.size/1024) + 'kb — processando...' : '✗ Sin foto');
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onerror = () => mostrarToast('✗ Error leyendo imagen');
-                    reader.onload = function(ev) {
-                        const dataUrl = ev.target.result;
-                        c.ticket = dataUrl;
-                        const overlay = document.getElementById('modalTicketViewer');
-                        const inner   = document.getElementById('ticketViewerInner');
-                        const titulo  = document.getElementById('ticketViewerTitulo');
-                        titulo.textContent = 'TICKET — ' + (c.proveedor||'').toUpperCase();
-                        inner.innerHTML = `<img src="${dataUrl}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
-                        overlay.classList.remove('hidden'); overlay.style.display = 'flex';
-                        mostrarToast('✓ Guardando en sheet...');
-                        fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, ticket:dataUrl, _soloTicket:true }) });
-                    };
-                    reader.readAsDataURL(file);
-                });
-                inp.click();
+                window._ticketCompraActual = c;
+                document.getElementById('inputTicketCamara').click();
                 return;
             }
             const overlay = document.getElementById('modalTicketViewer');
@@ -10203,9 +10199,10 @@ window.verDetalleProveedor = function(tipo, id) {
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                     <span style="font-size:9px;font-weight:900;color:#10b981;text-transform:uppercase;">${Utils.escHtml(fecha||'')}</span>
                     <div style="display:flex;align-items:center;gap:6px;">
-                        <button onclick="verTicketCompraById('${idPago}')"
-                            style="padding:3px 7px;background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:6px;cursor:pointer;font-size:12px;line-height:1;"
-                            title="Ver ticket">🧾</button>
+                        ${ticket
+                            ? `<button onclick="verTicketCompraById('${idPago}')" style="padding:3px 7px;background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:6px;cursor:pointer;font-size:12px;line-height:1;" title="Ver ticket">🧾</button>`
+                            : `<label for="inputTicketCamara" onclick="window._ticketCompraActual=_sheetCompras.find(x=>String(x.id||'').trim()==='${idPago}')" style="padding:3px 7px;background:#1e293b;color:#475569;border:1px dashed #475569;border-radius:6px;cursor:pointer;font-size:12px;line-height:1;display:inline-block;" title="Subir ticket">📷</label>`
+                        }
                         <span style="font-size:13px;font-weight:900;color:#f87171;font-family:monospace;">$${Utils.fmt(saldoTotal)}</span>
                     </div>
                 </div>
@@ -13364,7 +13361,7 @@ document.addEventListener('DOMContentLoaded', function () {
     </script>
 
     <!-- MODAL VER TICKET COMPRA -->
-    <input type="file" id="inputTicketCamara" accept="image/*" capture="environment" style="display:none;">
+    <input type="file" id="inputTicketCamara" accept="image/*" capture="environment" style="position:fixed;top:-200px;left:-200px;width:1px;height:1px;" onchange="window._onTicketCapturado(this)">
     <div id="modalTicketViewer" class="hidden fixed inset-0 z-50 items-center justify-center p-4" style="background:rgba(0,0,0,0.85);display:none;">
         <div class="glass-card w-full max-w-2xl rounded-2xl border border-slate-700 overflow-hidden flex flex-col" style="max-height:90vh;">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/80 shrink-0">
