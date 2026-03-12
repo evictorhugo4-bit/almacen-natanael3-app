@@ -8188,10 +8188,9 @@ container.innerHTML = filtradasOrdenadas.map((c, idx) => {
                 inputCam.onchange = null;
                 inputCam.value = '';
                 inputCam.onchange = function() {
-                    console.log('[TICKET] onchange disparado, files:', inputCam.files.length);
                     const file = inputCam.files[0];
-                    if (!file) { console.log('[TICKET] sin archivo'); return; }
-                    console.log('[TICKET] archivo:', file.name, file.size, file.type);
+                    if (!file) { mostrarToast('Sin archivo'); return; }
+                    mostrarToast('📷 Procesando ' + file.name + ' (' + Math.round(file.size/1024) + 'kb)');
                     const reader = new FileReader();
                     reader.onload = function(ev) {
                         const dataUrl = ev.target.result;
