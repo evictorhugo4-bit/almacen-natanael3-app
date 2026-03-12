@@ -1063,7 +1063,13 @@ GUARDAR PRODUCTO
                 </div>
             </div>
 
-          <button onclick="toggleModal('modalDetalleProveedor',false)">✖</button>   </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+              <button id="btnNuevaCompraProveedor" onclick="abrirNuevaCompraDesdeProveedor()"
+                  style="padding:6px 12px;background:#064e3b;color:#34d399;border:1px solid #065f46;border-radius:10px;cursor:pointer;font-size:10px;font-weight:900;text-transform:uppercase;">
+                  + Nueva Compra
+              </button>
+              <button onclick="toggleModal('modalDetalleProveedor',false)">✖</button>
+          </div></div>
 
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
@@ -1090,6 +1096,35 @@ GUARDAR PRODUCTO
 
             </div>
 
+
+            <!-- TICKET PROVEEDOR -->
+            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700 space-y-2">
+                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Ticket / Factura</label>
+                <div id="ticketPreviewProv" class="hidden relative">
+                    <div id="ticketPreviewInnerProv" class="w-full rounded-lg overflow-hidden bg-slate-950 flex items-center justify-center" style="min-height:80px;"></div>
+                    <button onclick="quitarTicketProv()" class="absolute top-1 right-1 bg-red-900 text-red-300 rounded-full w-6 h-6 flex items-center justify-center text-xs font-black border border-red-700" title="Quitar">✕</button>
+                </div>
+                <div id="ticketBotonesProv" class="flex gap-2">
+                    <label class="flex-1 flex items-center justify-center gap-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg cursor-pointer text-[10px] font-black uppercase transition-all border border-slate-700" title="Subir imagen o PDF">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Subir
+                        <input type="file" id="inputTicketArchivoProv" accept="image/*,.pdf" class="hidden" onchange="cargarTicketArchivoProv(this)">
+                    </label>
+                    <button onclick="abrirCamaraTicketProv()" class="flex-1 flex items-center justify-center gap-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-black uppercase transition-all border border-slate-700" title="Sacar foto">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        Cámara
+                    </button>
+                </div>
+                <div id="camaraContainerProv" class="hidden space-y-2">
+                    <video id="camaraVideoProv" autoplay playsinline class="w-full rounded-lg" style="max-height:180px;object-fit:cover;background:#000;"></video>
+                    <div class="flex gap-2">
+                        <button onclick="capturarFotoTicketProv()" class="flex-1 py-2 bg-emerald-600 text-black font-black text-[10px] uppercase rounded-lg">📸 Capturar</button>
+                        <button onclick="cerrarCamaraTicketProv()" class="flex-1 py-2 bg-slate-700 text-slate-300 font-black text-[10px] uppercase rounded-lg">✕ Cerrar</button>
+                    </div>
+                    <canvas id="camaraCanvasProv" class="hidden"></canvas>
+                </div>
+                <p id="ticketNombreProv" style="font-size:9px;color:#475569;margin-top:2px;"></p>
+            </div>
 
             <!-- COMPRAS PENDIENTES -->
             <div>
@@ -5249,7 +5284,8 @@ cargarOpcionesProducto();
 
             // Enviar a Google Sheets
             const ganancia = data.precio - data.costo;
-            const margen   = data.costo > 0 ? ((ganancia / data.costo) * 100).toFixed(2) : 0;
+            const _margenPct1 = (String(data.proveedor||'').toUpperCase().trim()==='GUAPITO') ? 25 : 35;
+            const margen   = _margenPct1;
             const prodPayload = {
                 tipo: 'producto',
                 id: data.id,
@@ -6962,6 +6998,80 @@ function selGeneroIngEgr(val){
 
         function cerrarNuevaCompra() { toggleModal('modalCompra', false); resetTicketUI && resetTicketUI(); }
 
+        // ── TICKET PROVEEDOR (replica de ticket compra) ──────────────────────
+        let _streamProvTicket = null;
+        window._ticketDataProv = null;
+
+        function mostrarPreviewTicketProv(tipo, dataUrl, nombre) {
+            const inner = document.getElementById('ticketPreviewInnerProv');
+            if (tipo === 'application/pdf') {
+                inner.innerHTML = `<iframe src="${dataUrl}" style="width:100%;height:120px;border:none;border-radius:6px;"></iframe>`;
+            } else {
+                inner.innerHTML = `<img src="${dataUrl}" style="max-width:100%;max-height:120px;object-fit:contain;border-radius:6px;display:block;margin:0 auto;">`;
+            }
+            document.getElementById('ticketPreviewProv').classList.remove('hidden');
+            document.getElementById('ticketBotonesProv').classList.add('hidden');
+            if (nombre) document.getElementById('ticketNombreProv').textContent = nombre;
+            window._ticketDataProv = dataUrl;
+        }
+
+        window.cargarTicketArchivoProv = function(input) {
+            const file = input.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = e => mostrarPreviewTicketProv(file.type, e.target.result, file.name);
+            reader.readAsDataURL(file);
+        };
+
+        window.quitarTicketProv = function() {
+            window._ticketDataProv = null;
+            document.getElementById('ticketPreviewProv').classList.add('hidden');
+            document.getElementById('ticketBotonesProv').classList.remove('hidden');
+            document.getElementById('ticketNombreProv').textContent = '';
+            document.getElementById('inputTicketArchivoProv').value = '';
+        };
+
+        window.abrirCamaraTicketProv = function() {
+            const cont = document.getElementById('camaraContainerProv');
+            cont.classList.remove('hidden');
+            document.getElementById('ticketBotonesProv').classList.add('hidden');
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                .then(stream => {
+                    _streamProvTicket = stream;
+                    document.getElementById('camaraVideoProv').srcObject = stream;
+                })
+                .catch(() => { mostrarToast('No se pudo acceder a la cámara'); cerrarCamaraTicketProv(); });
+        };
+
+        window.cerrarCamaraTicketProv = function() {
+            if (_streamProvTicket) { _streamProvTicket.getTracks().forEach(t => t.stop()); _streamProvTicket = null; }
+            document.getElementById('camaraContainerProv').classList.add('hidden');
+            document.getElementById('ticketBotonesProv').classList.remove('hidden');
+        };
+
+        window.capturarFotoTicketProv = function() {
+            const video = document.getElementById('camaraVideoProv');
+            const canvas = document.getElementById('camaraCanvasProv');
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            cerrarCamaraTicketProv();
+            mostrarPreviewTicketProv('image/jpeg', dataUrl, 'foto.jpg');
+        };
+
+        window.abrirNuevaCompraDesdeProveedor = function() {
+            const nombre = (document.getElementById('detalleProveedorNombre').textContent || '').trim();
+            toggleModal('modalDetalleProveedor', false);
+            // Limpiar y abrir modal compra
+            document.getElementById('inputCompraProveedor').value = nombre;
+            document.getElementById('inputCompraEfectivo').value = '';
+            document.getElementById('compraCredito').textContent = '$0';
+            document.getElementById('compraTotalDisplay').textContent = '$0';
+            renderCarritoCompra && renderCarritoCompra();
+            resetTicketUI && resetTicketUI();
+            toggleModal('modalCompra', true);
+            lucide.createIcons && lucide.createIcons();
+        };
+
         function abrirCatalogoCompra() {
             document.getElementById('inputBusquedaCompra').value = '';
             filtrarProductosCompra('');
@@ -7727,7 +7837,8 @@ producto.vencimiento = nuevoVencimiento;
 
         // SINCRONIZAR CON GOOGLE SHEETS (igual que al editar desde el formulario de inventario)
         const ganancia = producto.precio - producto.costo;
-        const margen   = producto.costo > 0 ? ((ganancia / producto.costo) * 100).toFixed(2) : 0;
+        const _margenPct2 = (String(producto.proveedor||'').toUpperCase().trim()==='GUAPITO') ? 25 : 35;
+        const margen   = _margenPct2;
         const prodPayload = {
             tipo: 'producto',
             id: producto.id,
@@ -8178,26 +8289,48 @@ container.innerHTML = filtradasOrdenadas.map((c, idx) => {
 
         // Handler global para cuando se captura una foto de ticket
         window._ticketCompraActual = null;
+        window._ticketEgresoActual = null;
+        window.verTicketEgresoById = function(idS) {
+            const e = (_sheetEgresos||[]).find(x => String(x.idSheet||'').trim() === String(idS).trim());
+            if (!e || !e.ticket) { mostrarToast('Sin ticket'); return; }
+            const overlay = document.getElementById('modalTicketViewer');
+            const inner   = document.getElementById('ticketViewerInner');
+            const titulo  = document.getElementById('ticketViewerTitulo');
+            titulo.textContent = 'TICKET — ' + (e.concepto||'').toUpperCase() + ' ' + (e.fecha||'');
+            inner.innerHTML = `<img src="${e.ticket}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
+            overlay.classList.remove('hidden'); overlay.style.display = 'flex';
+        };
         window._onTicketCapturado = function(input) {
             const file = input.files && input.files[0];
             input.value = '';
             if (!file) return;
-            const c = window._ticketCompraActual;
-            if (!c) return;
             mostrarToast('📷 Procesando...');
             const reader = new FileReader();
             reader.onerror = () => mostrarToast('✗ Error leyendo imagen');
             reader.onload = function(ev) {
                 const dataUrl = ev.target.result;
-                c.ticket = dataUrl;
                 const overlay = document.getElementById('modalTicketViewer');
                 const inner   = document.getElementById('ticketViewerInner');
                 const titulo  = document.getElementById('ticketViewerTitulo');
-                titulo.textContent = 'TICKET — ' + (c.proveedor||'').toUpperCase();
-                inner.innerHTML = `<img src="${dataUrl}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
                 overlay.classList.remove('hidden'); overlay.style.display = 'flex';
-                mostrarToast('✓ Guardando ticket...');
-                fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, ticket:dataUrl, _soloTicket:true }) });
+                inner.innerHTML = `<img src="${dataUrl}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
+                // Compra
+                if (window._ticketCompraActual) {
+                    const c = window._ticketCompraActual;
+                    c.ticket = dataUrl;
+                    titulo.textContent = 'TICKET — ' + (c.proveedor||'').toUpperCase();
+                    mostrarToast('✓ Guardando ticket...');
+                    fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, ticket:dataUrl, _soloTicket:true }) });
+                    window._ticketCompraActual = null;
+                // Egreso
+                } else if (window._ticketEgresoActual) {
+                    const e = window._ticketEgresoActual;
+                    e.ticket = dataUrl;
+                    titulo.textContent = 'TICKET — ' + (e.concepto||'').toUpperCase();
+                    mostrarToast('✓ Guardando ticket...');
+                    fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'egreso_ticket', id:e.idSheet, ticket:dataUrl }) });
+                    window._ticketEgresoActual = null;
+                }
             };
             reader.readAsDataURL(file);
         };
@@ -10047,10 +10180,16 @@ window.verDetalleCategoriaGasto = function(categoria) {
         ? '<p style="font-size:10px;color:#475569;font-weight:700;text-transform:uppercase;font-style:italic;">Sin saldo pendiente</p>'
         : pendientes.map(({e, idS, saldo}) => {
             const desc = e.detalle || e.concepto || '—';
+            const ticketBtn = e.ticket
+                ? `<button onclick="verTicketEgresoById('${idS}')" style="padding:3px 7px;background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:6px;cursor:pointer;font-size:12px;line-height:1;" title="Ver ticket">🧾</button>`
+                : `<label for="inputTicketCamara" onclick="window._ticketEgresoActual=(_sheetEgresos||[]).find(x=>String(x.idSheet||'').trim()==='${idS}')" style="padding:3px 7px;background:#1e293b;color:#475569;border:1px dashed #475569;border-radius:6px;cursor:pointer;font-size:12px;line-height:1;display:inline-block;" title="Subir ticket">📷</label>`;
             return `<div style="background:#0f172a;border:1px solid #7f1d1d;border-radius:10px;padding:10px;margin-bottom:6px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
                     <span style="font-size:9px;font-weight:900;color:#10b981;text-transform:uppercase;">${Utils.escHtml(e.fecha||'')}</span>
-                    <span style="font-size:13px;font-weight:900;color:#f87171;font-family:monospace;">$${Utils.fmt(saldo)}</span>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        ${ticketBtn}
+                        <span style="font-size:13px;font-weight:900;color:#f87171;font-family:monospace;">$${Utils.fmt(saldo)}</span>
+                    </div>
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;">
                     <span style="font-size:10px;color:#cbd5e1;">📦 ${Utils.escHtml(desc)}</span>
