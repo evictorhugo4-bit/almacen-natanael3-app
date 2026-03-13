@@ -8756,7 +8756,9 @@ container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
                     subirTicketImgBB(ticketFinal, function(url) {
                         console.log('[TICKET DBG] → ImgBB url:', url ? url.substring(0,60) : url);
                         compra.ticket = url || ticketFinal;
-                        editarEnSheet({ tipo: 'actualizar_compra', idCompra: _idParaSheet, proveedor: prov, ticket: compra.ticket });
+                        const payloadFinal = { tipo: 'actualizar_compra', idCompra: _idParaSheet, proveedor: prov, ticket: compra.ticket };
+                        console.log('[TICKET DBG] → payload a enviar:', JSON.stringify(payloadFinal).substring(0,200));
+                        editarEnSheet(payloadFinal);
                     });
                 } else {
                     console.log('[TICKET DBG] → ticket ya es URL, enviando directo');
@@ -10941,6 +10943,7 @@ function verDetalleProveedor(tipo, id){
             try {
                 const payload = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
                 console.log('[Sheet] POST → body length:', payload.length);
+                console.log('[Sheet] POST → body preview:', payload.substring(0, 300));
                 fetch(SHEETS_URL2, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain' },
