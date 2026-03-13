@@ -7037,20 +7037,24 @@ function selGeneroIngEgr(val){
         window._ticketDataProv2 = null;
 
         window.verTicketProvIdx = function(idPago, ti) {
-            const tks = (window._ticketsProvCache && window._ticketsProvCache[idPago]) || [];
-            const t = tks[ti];
+            // Buscar ticket directo en _sheetCompras
+            const c = _sheetCompras.find(x => String(x.id||'').trim() === String(idPago).trim());
+            const tks = c ? (c.tickets && c.tickets.length > 0 ? c.tickets : (c.ticket ? [c.ticket] : [])) : 
+                        ((window._ticketsProvCache && window._ticketsProvCache[idPago]) || []);
+            const t = tks[ti != null ? ti : 0];
+            console.warn('[TICKET DBG] idPago:', idPago, 'ti:', ti, 'tks:', tks.length, 't:', t ? t.substring(0,60) : 'VACIO');
             if (!t) { mostrarToast('Ticket no encontrado'); return; }
             const overlay = document.getElementById('modalTicketViewer');
             const inner   = document.getElementById('ticketViewerInner');
             const titulo  = document.getElementById('ticketViewerTitulo');
-            const c = _sheetCompras.find(x => String(x.id||'').trim() === String(idPago).trim());
             if (titulo) titulo.textContent = 'TICKET' + (tks.length>1?' '+(ti+1):'') + (c?' — '+(c.proveedor||'').toUpperCase():'');
             if (inner) {
-                if (t.startsWith('data:image') || t.match(/\.(jpg|jpeg|png|gif|webp)/i)) {
-                    inner.innerHTML = `<img src="${t}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
-                } else {
-                    inner.innerHTML = `<div style="text-align:center;padding:20px;"><p style="color:#94a3b8;margin-bottom:12px;">No se puede previsualizar este archivo.</p><a href="${t}" target="_blank" style="color:#60a5fa;font-weight:900;">Abrir en nueva pestaña ↗</a></div>`;
-                }
+                // Mostrar imagen para cualquier URL o base64
+                inner.innerHTML = `<img src="${t}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+                    <div style="display:none;text-align:center;padding:20px;">
+                        <p style="color:#94a3b8;margin-bottom:12px;">No se puede previsualizar.</p>
+                        <a href="${t}" target="_blank" style="color:#60a5fa;font-weight:900;">Abrir en nueva pestaña ↗</a>
+                    </div>`;
             }
             if (overlay) { overlay.style.cssText = 'display:flex!important;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,0.85);'; }
         };
@@ -8536,7 +8540,6 @@ container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
 
         function cerrarTicketViewer() {
             const overlay = document.getElementById('modalTicketViewer');
-            overlay.classList.add('hidden');
             overlay.style.display = 'none';
             document.getElementById('ticketViewerInner').innerHTML = '';
         }
@@ -10505,9 +10508,7 @@ window.verDetalleProveedor = function(tipo, id) {
                 ? tks.map((t,ti) => `<button onclick="verTicketProvIdx('${idPago}',${ti})"
                         style="padding:3px 8px;background:#1e3a5f;color:#60a5fa;border:1px solid #1e40af;border-radius:6px;cursor:pointer;font-size:10px;font-weight:900;line-height:1;"
                         title="Ver ticket${tks.length>1?' '+(ti+1):''}">🧾 Ver${tks.length>1?' '+(ti+1):''}</button>`).join('')
-                  + `<button onclick="abrirTicketProvModal('${idPago}')"
-                        style="padding:3px 8px;background:#1e293b;color:#64748b;border:1px dashed #334155;border-radius:6px;cursor:pointer;font-size:11px;line-height:1;"
-                        title="Agregar ticket">📷</button>`
+
                 : `<span style="font-size:9px;color:#475569;font-style:italic;">Sin ticket</span>`;
             return `<div style="background:#0f172a;border:1px solid #7f1d1d;border-radius:10px;padding:10px;margin-bottom:6px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
@@ -13722,7 +13723,7 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
 
     <input type="file" id="inputTicketCamara" accept="image/*" capture="environment" style="position:fixed;top:-200px;left:-200px;width:1px;height:1px;" onchange="window._onTicketCapturado(this)">
-    <div id="modalTicketViewer" class="hidden fixed inset-0 z-50 items-center justify-center p-4" style="background:rgba(0,0,0,0.85);display:none;">
+    <div id="modalTicketViewer" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,0.85);">
         <div class="glass-card w-full max-w-2xl rounded-2xl border border-slate-700 overflow-hidden flex flex-col" style="max-height:90vh;">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/80 shrink-0">
                 <span id="ticketViewerTitulo" class="text-[11px] font-black text-emerald-400 uppercase tracking-widest"></span>
