@@ -7184,12 +7184,17 @@ function selGeneroIngEgr(val){
             const idC = window._ticketProvIdCompra;
             const c = _sheetCompras.find(x => String(x.id||'').trim() === String(idC).trim());
             if (!c) { mostrarToast('Compra no encontrada'); return; }
-            if (!c.tickets) c.tickets = c.ticket ? [c.ticket] : [];
-            c.tickets.push(window._ticketDataProv2);
-            c.ticket = c.tickets[0]; // compatibilidad
-            fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, tickets:c.tickets, ticket:c.tickets[0], _soloTicket:true }) });
-            mostrarToast('✓ Ticket ' + c.tickets.length + ' guardado');
-            cerrarModalTicketProv();
+            mostrarToast('Subiendo ticket...');
+            // Subir a ImgBB para no mandar base64 gigante al sheet
+            subirFotoImgBB(window._ticketDataProv2, function(url) {
+                const ticketUrl = url || window._ticketDataProv2;
+                if (!c.tickets) c.tickets = c.ticket ? [c.ticket] : [];
+                c.tickets.push(ticketUrl);
+                c.ticket = c.tickets[0];
+                fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, ticket:ticketUrl, _soloTicket:true }) });
+                mostrarToast('✓ Ticket guardado');
+                cerrarModalTicketProv();
+            });
         };
 
         // Guardar ticket cuando se captura desde modal proveedor
@@ -10454,7 +10459,7 @@ window.verDetalleProveedor = function(tipo, id) {
     if (lblPend) lblPend.childNodes[0].textContent = esGasto ? 'Gastos con saldo pendiente ' : 'Compras con saldo pendiente ';
 
     // -- COMPRAS/GASTOS PENDIENTES: agrupadas por fechaISO --
-    console.warn('[PROV DBG] comprasProveedor[0]:', comprasProveedor.length > 0 ? JSON.stringify({id:comprasProveedor[0].id, credito:comprasProveedor[0].credito, total:comprasProveedor[0].total, items:comprasProveedor[0].items?.length}) : 'VACIO');
+    console.warn('[PROV DBG] c0:', comprasProveedor.length > 0 ? JSON.stringify({id:comprasProveedor[0].id, credito:comprasProveedor[0].credito, total:comprasProveedor[0].total, items:comprasProveedor[0].items, tickets:comprasProveedor[0].tickets}) : 'VACIO');
     const gruposCompra = new Map();
     comprasProveedor.forEach(c => {
         const idC = esGasto ? String(c.idSheet||c.id||'').trim() : String(c.id||'').trim();
