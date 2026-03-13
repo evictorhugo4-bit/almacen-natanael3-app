@@ -7037,26 +7037,31 @@ function selGeneroIngEgr(val){
         window._ticketDataProv2 = null;
 
         window.verTicketProvIdx = function(idPago, ti) {
-            // Buscar ticket directo en _sheetCompras
             const c = _sheetCompras.find(x => String(x.id||'').trim() === String(idPago).trim());
-            const tks = c ? (c.tickets && c.tickets.length > 0 ? c.tickets : (c.ticket ? [c.ticket] : [])) : 
+            const tks = c ? (c.tickets && c.tickets.length > 0 ? c.tickets : (c.ticket ? [c.ticket] : [])) :
                         ((window._ticketsProvCache && window._ticketsProvCache[idPago]) || []);
             const t = tks[ti != null ? ti : 0];
-            console.warn('[TICKET DBG] idPago:', idPago, 'ti:', ti, 'tks:', tks.length, 't:', t ? t.substring(0,60) : 'VACIO');
             if (!t) { mostrarToast('Ticket no encontrado'); return; }
-            const overlay = document.getElementById('modalTicketViewer');
-            const inner   = document.getElementById('ticketViewerInner');
-            const titulo  = document.getElementById('ticketViewerTitulo');
-            if (titulo) titulo.textContent = 'TICKET' + (tks.length>1?' '+(ti+1):'') + (c?' — '+(c.proveedor||'').toUpperCase():'');
-            if (inner) {
-                // Mostrar imagen para cualquier URL o base64
-                inner.innerHTML = `<img src="${t}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-                    <div style="display:none;text-align:center;padding:20px;">
-                        <p style="color:#94a3b8;margin-bottom:12px;">No se puede previsualizar.</p>
-                        <a href="${t}" target="_blank" style="color:#60a5fa;font-weight:900;">Abrir en nueva pestaña ↗</a>
-                    </div>`;
+            const src = driveUrl(t);
+            // Crear overlay igual que se hace con fotos de productos
+            let ov = document.getElementById('_ticketOverlaySimple');
+            if (!ov) {
+                ov = document.createElement('div');
+                ov.id = '_ticketOverlaySimple';
+                ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;padding:16px;';
+                ov.onclick = function() { ov.remove(); };
+                document.body.appendChild(ov);
+            } else {
+                ov.innerHTML = '';
+                ov.style.display = 'flex';
             }
-            if (overlay) { overlay.style.cssText = 'display:flex!important;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,0.85);'; }
+            const img = document.createElement('img');
+            img.src = src;
+            img.style.cssText = 'max-width:100%;max-height:90vh;object-fit:contain;border-radius:12px;display:block;';
+            img.onerror = function() {
+                ov.innerHTML = '<div style="color:#94a3b8;text-align:center;"><p style="margin-bottom:12px;">No se puede previsualizar.</p><a href="' + src + '" target="_blank" style="color:#60a5fa;font-weight:900;">Abrir en nueva pestaña ↗</a><br><br><button onclick="document.getElementById(\'_ticketOverlaySimple\').remove()" style="margin-top:8px;padding:6px 16px;background:#334155;color:white;border:none;border-radius:8px;cursor:pointer;">Cerrar</button></div>';
+            };
+            ov.appendChild(img);
         };
 
         window.verTicketProvDirecto = function(encodedUrl, idPago, ti) {
