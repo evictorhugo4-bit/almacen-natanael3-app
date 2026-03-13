@@ -5455,15 +5455,18 @@ console.log("CLIENTE COMPLETO:", c);
             }
             
 
-            // Enviar a Google Sheets
+            // Enviar a Google Sheets — incluir idSheet para que el script ubique la fila correcta al editar
+            const clienteEditado = id ? clientesDB.find(c => c.id === id) : null;
+            const idSheet = clienteEditado ? (clienteEditado.idSheet || clienteEditado.id || '') : '';
             const clientePayload = {
-                tipo: 'cliente',
+                tipo:      'cliente',
+                id:        idSheet,
                 nombre,
-                celular: document.getElementById('cCelular').value.trim(),
+                celular:   document.getElementById('cCelular').value.trim(),
                 direccion: document.getElementById('cDireccion').value.trim(),
-                foto: foto || ''
+                foto:      foto || (clienteEditado ? clienteEditado.foto || '' : '')
             };
-            fetchSheets( {method:'POST',body:JSON.stringify(clientePayload)});
+            fetchSheets({method:'POST', body:JSON.stringify(clientePayload)});
 
             cerrarEditorCliente();
             renderClientes();
