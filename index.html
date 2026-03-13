@@ -7036,6 +7036,23 @@ function selGeneroIngEgr(val){
         window._streamProvTicket2 = null;
         window._ticketDataProv2 = null;
 
+        window.verTicketProvDirecto = function(encodedUrl, idPago, ti) {
+            const t = decodeURIComponent(encodedUrl);
+            const overlay = document.getElementById('modalTicketViewer');
+            const inner   = document.getElementById('ticketViewerInner');
+            const titulo  = document.getElementById('ticketViewerTitulo');
+            if (!overlay || !inner) { window.open(t,'_blank'); return; }
+            const c = _sheetCompras.find(x => String(x.id||'').trim() === String(idPago).trim());
+            const tks = c ? (c.tickets || (c.ticket?[c.ticket]:[])) : [];
+            titulo.textContent = 'TICKET' + (tks.length>1?' '+(ti+1):'') + (c?' — '+(c.proveedor||'').toUpperCase():'');
+            if (t.startsWith('data:') || t.startsWith('http')) {
+                inner.innerHTML = `<img src="${t}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
+            } else {
+                inner.innerHTML = `<p style="color:#94a3b8;text-align:center;">No se puede previsualizar este archivo.<br><a href="${t}" target="_blank" style="color:#60a5fa;">Abrir en nueva pestaña</a></p>`;
+            }
+            overlay.classList.remove('hidden'); overlay.style.display = 'flex';
+        };
+
         window.editarCompraDesdeProveedor = function(idC) {
             const idx = _sheetCompras.findIndex(x => String(x.id||'').trim() === String(idC).trim());
             if (idx === -1) { mostrarToast('Compra no encontrada'); return; }
@@ -10418,20 +10435,23 @@ window.verDetalleProveedor = function(tipo, id) {
                        .reduce((s,p)=> s+(Number(p.MONTO||p.monto)||0), 0)
             : pagosComp.filter(p => !idC || String(p.idCompra||p.IDCOMPRAS||'').trim() === idC)
                        .reduce((s,p)=> s+(Number(p.monto)||0), 0);
-        const saldo = Math.max(0, (Number(c.credito)||0) - pagadoEsta);
+        const montoBruto = (Number(c.credito)||0) || (Number(c.total)||0);
+        const saldo = Math.max(0, montoBruto - pagadoEsta);
         if (saldo <= 0) return;
         const idBase = String(c.fechaISO || c.fecha || '').trim();
         if (!gruposCompra.has(idBase)) {
-            gruposCompra.set(idBase, { fecha: c.fecha, idBase, idC, saldoTotal: 0, items: [], ticket: c.ticket || null });
+            const tk0 = c.tickets && c.tickets.length > 0 ? [...c.tickets] : (c.ticket ? [c.ticket] : []);
+            gruposCompra.set(idBase, { fecha: c.fecha, idBase, idC, saldoTotal: 0, items: [], tickets: tk0 });
         }
         const g = gruposCompra.get(idBase);
-        if (!g.ticket && c.ticket) g.ticket = c.ticket;
+        const tkC = c.tickets && c.tickets.length > 0 ? c.tickets : (c.ticket ? [c.ticket] : []);
+        tkC.forEach(t => { if (t && !g.tickets.includes(t)) g.tickets.push(t); });
         const itemsC = c.items && c.items.length > 0 ? c.items
-            : esGasto ? [{nombre: (c.detalle||c.concepto||'—'), cantidad:1, costo: c.credito}]
-            : [{nombre: c.producto||'—', cantidad:1, costo: c.credito}];
-        const totalItems = itemsC.reduce((s,i) => s + (parseFloat(i.costo||i.precio||0))*(parseFloat(i.cantidad)||1), 0);
+            : esGasto ? [{nombre: (c.detalle||c.concepto||'—'), cantidad:1, costo: c.credito, subtotal: c.credito}]
+            : [{nombre: c.producto||'—', cantidad:1, costo: c.credito, subtotal: c.credito}];
+        const totalItems = itemsC.reduce((s,i) => s + (parseFloat(i.subtotal||0) || (parseFloat(i.costo||0))*(parseFloat(i.cantidad)||1)), 0);
         itemsC.forEach(item => {
-            const sub = (parseFloat(item.costo||item.precio||0)) * (parseFloat(item.cantidad)||1);
+            const sub = parseFloat(item.subtotal||0) || (parseFloat(item.costo||0)) * (parseFloat(item.cantidad)||1);
             const saldoItem = totalItems > 0 ? Math.round(saldo * sub / totalItems) : sub;
             g.items.push({...item, _saldoItem: saldoItem, _idC: idC});
             g.saldoTotal += saldoItem;
@@ -10442,10 +10462,10 @@ window.verDetalleProveedor = function(tipo, id) {
         .sort((a,b) => new Date(b.idBase||0) - new Date(a.idBase||0));
     document.getElementById("detalleProvComprasPend").innerHTML = comprasPendList.length === 0
         ? '<p style="font-size:10px;color:#475569;font-weight:700;text-transform:uppercase;font-style:italic;">Sin saldo pendiente</p>'
-        : comprasPendList.map(({fecha, idC, saldoTotal, items, ticket}) => {
+        : comprasPendList.map(({fecha, idC, saldoTotal, items, tickets}) => {
             const itemsHtml = items.map(item => {
                 const nom = (item.cantidad>1?item.cantidad+'x ':'')+( item.nombre||'—');
-                const subtotal = item._saldoItem || (parseFloat(item.costo||item.precio||0)) * (parseFloat(item.cantidad)||1);
+                const subtotal = item._saldoItem || parseFloat(item.subtotal||0) || (parseFloat(item.costo||0)) * (parseFloat(item.cantidad)||1);
                 const itemIdC = item._idC || idC;
                 return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #1e293b20;">
                     <span style="font-size:9px;color:#94a3b8;">📦</span>
@@ -10457,16 +10477,22 @@ window.verDetalleProveedor = function(tipo, id) {
                 </div>`;
             }).join('');
             const idPago = idC || '';
+            const tks = tickets || [];
+            const ticketBtns = tks.length > 0
+                ? tks.map((t,ti) => `<button onclick="verTicketProvDirecto('${encodeURIComponent(t)}','${idPago}',${ti})"
+                        style="padding:3px 8px;background:#1e3a5f;color:#60a5fa;border:1px solid #1e40af;border-radius:6px;cursor:pointer;font-size:10px;font-weight:900;line-height:1;"
+                        title="Ver ticket ${tks.length>1?ti+1:''}">🧾${tks.length>1?' '+(ti+1):''}</button>`).join('')
+                  + `<button onclick="abrirTicketProvModal('${idPago}')"
+                        style="padding:3px 8px;background:#1e293b;color:#64748b;border:1px dashed #334155;border-radius:6px;cursor:pointer;font-size:11px;line-height:1;"
+                        title="Agregar ticket">📷</button>`
+                : `<button onclick="abrirTicketProvModal('${idPago}')"
+                        style="padding:3px 8px;background:#1e293b;color:#475569;border:1px dashed #475569;border-radius:6px;cursor:pointer;font-size:12px;line-height:1;"
+                        title="Subir ticket">📷</button>`;
             return `<div style="background:#0f172a;border:1px solid #7f1d1d;border-radius:10px;padding:10px;margin-bottom:6px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                     <span style="font-size:9px;font-weight:900;color:#10b981;text-transform:uppercase;">${Utils.escHtml(fecha||'')}</span>
                     <div style="display:flex;align-items:center;gap:4px;">
-                        <button onclick="editarCompraDesdeProveedor('${idPago}')"
-                            style="padding:3px 7px;background:#1e3a5f;color:#60a5fa;border:1px solid #1e40af;border-radius:6px;cursor:pointer;font-size:12px;line-height:1;"
-                            title="Editar compra">✏️</button>
-                        <button onclick="abrirTicketProvModal('${idPago}')"
-                            style="padding:3px 7px;background:#1e293b;color:${ticket?'#94a3b8':'#475569'};border:1px ${ticket?'solid #334155':'dashed #475569'};border-radius:6px;cursor:pointer;font-size:12px;line-height:1;"
-                            title="${ticket?'Ver ticket':'Subir ticket'}">${ticket?'🧾':'📷'}</button>
+                        ${ticketBtns}
                         <span style="font-size:13px;font-weight:900;color:#f87171;font-family:monospace;">$${Utils.fmt(saldoTotal)}</span>
                     </div>
                 </div>
