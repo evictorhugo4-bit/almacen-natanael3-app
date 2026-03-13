@@ -3587,7 +3587,7 @@ _sheetProductos.forEach(p => {
             // URL de Drive vieja → intentar thumbnail igual
             const m = url.match(/\/d\/([\w-]+)/) || url.match(/[?&]id=([\w-]+)/);
             if (!m) return url;
-            return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1600';
+            return 'https://lh3.googleusercontent.com/d/' + m[1] + '=s0';
         }
 
         // Sube imagen a ImgBB (hosting gratuito, URL permanente, funciona en móvil)
@@ -7042,53 +7042,76 @@ function selGeneroIngEgr(val){
                         ((window._ticketsProvCache && window._ticketsProvCache[idPago]) || []);
             const t = tks[ti != null ? ti : 0];
             if (!t) { mostrarToast('Ticket no encontrado'); return; }
-            const srcOriginal = t;
-            const srcThumb = driveUrl(t);
 
-            let ov = document.getElementById('_ticketOverlaySimple');
-            if (!ov) {
-                ov = document.createElement('div');
-                ov.id = '_ticketOverlaySimple';
-                document.body.appendChild(ov);
+            // Resolver URL en máxima calidad — sin thumbnail comprimido
+            function resolverUrl(url) {
+                if (!url) return '';
+                if (url.startsWith('data:')) return url;
+                if (!url.includes('drive.google.com') && !url.includes('googleusercontent.com')) return url;
+                const m = url.match(/\/d\/([\w-]+)/) || url.match(/[?&]id=([\w-]+)/);
+                if (!m) return url;
+                // URL de descarga directa = calidad original
+                return 'https://drive.google.com/uc?export=view&id=' + m[1];
             }
-            ov.innerHTML = '';
-            ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;';
+
+            const srcHQ = resolverUrl(t);
+            const srcFallback = t; // URL original sin procesar como último recurso
+
+            // Eliminar overlay anterior si existe
+            const old = document.getElementById('_tvProv');
+            if (old) old.remove();
+
+            // Crear overlay y agregarlo DIRECTO al body (nunca dentro del modal)
+            const ov = document.createElement('div');
+            ov.id = '_tvProv';
+            ov.style.cssText = [
+                'position:fixed', 'top:0', 'left:0', 'width:100%', 'height:100%',
+                'z-index:2147483647', 'background:rgba(0,0,0,0.95)',
+                'display:flex', 'flex-direction:column',
+                'align-items:center', 'justify-content:center', 'padding:16px',
+                'box-sizing:border-box'
+            ].join(';');
+            ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+            document.body.appendChild(ov);
+
+            // Botón cerrar — pegado al body, z-index propio máximo
+            const btnX = document.createElement('button');
+            btnX.textContent = '✕ Cerrar';
+            btnX.style.cssText = [
+                'position:fixed', 'top:14px', 'right:14px', 'z-index:2147483647',
+                'background:#1e293b', 'color:#fff', 'border:1px solid #475569',
+                'border-radius:10px', 'padding:8px 20px',
+                'font-weight:900', 'font-size:13px', 'cursor:pointer', 'letter-spacing:.04em'
+            ].join(';');
+            btnX.onclick = function(e) { e.stopPropagation(); ov.remove(); };
+            document.body.appendChild(btnX);
+            // Limpiar botón cuando se cierre el overlay
+            const origRemove = ov.remove.bind(ov);
+            ov.remove = function() { btnX.remove(); origRemove(); };
             ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
 
-            // Botón cerrar siempre visible
-            const btnCerrar = document.createElement('button');
-            btnCerrar.textContent = '✕ Cerrar';
-            btnCerrar.style.cssText = 'position:fixed;top:16px;right:16px;z-index:2147483647;background:#334155;color:#fff;border:none;border-radius:10px;padding:8px 18px;font-weight:900;font-size:13px;cursor:pointer;';
-            btnCerrar.onclick = function(e) { e.stopPropagation(); ov.remove(); };
-            ov.appendChild(btnCerrar);
-
-            // Indicador de carga
-            const loading = document.createElement('div');
-            loading.style.cssText = 'color:#94a3b8;font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:12px;letter-spacing:.06em;';
-            loading.textContent = '⏳ Cargando ticket...';
-            ov.appendChild(loading);
-
-            function mostrarError() {
-                loading.remove();
-                const wrap = document.createElement('div');
-                wrap.style.cssText = 'color:#94a3b8;text-align:center;';
-                wrap.innerHTML = '<p style="margin-bottom:12px;font-size:13px;">No se puede previsualizar el ticket.</p>'
-                    + '<a href="' + srcOriginal + '" target="_blank" style="color:#60a5fa;font-weight:900;font-size:13px;">📄 Abrir en nueva pestaña ↗</a>';
-                ov.appendChild(wrap);
-            }
+            // Spinner de carga
+            const spin = document.createElement('div');
+            spin.style.cssText = 'color:#64748b;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;';
+            spin.textContent = '⏳ Cargando...';
+            ov.appendChild(spin);
 
             const img = document.createElement('img');
-            img.style.cssText = 'max-width:100%;max-height:82vh;object-fit:contain;border-radius:12px;display:block;box-shadow:0 0 40px rgba(0,0,0,0.8);';
-            img.onload = function() { loading.remove(); };
+            img.style.cssText = 'max-width:100%;max-height:85vh;object-fit:contain;border-radius:10px;display:block;';
+            img.onload = function() { spin.remove(); };
             img.onerror = function() {
-                // Si falla el thumbnail de Drive, intentar URL original directa
-                if (img.src !== srcOriginal && srcOriginal !== srcThumb) {
-                    img.src = srcOriginal;
+                if (img.src !== srcFallback) {
+                    img.src = srcFallback;
                 } else {
-                    mostrarError();
+                    spin.remove();
+                    const err = document.createElement('div');
+                    err.style.cssText = 'color:#94a3b8;text-align:center;';
+                    err.innerHTML = '<p style="margin-bottom:10px;font-size:13px;">No se puede previsualizar.</p>'
+                        + '<a href="' + srcFallback + '" target="_blank" style="color:#60a5fa;font-weight:900;font-size:13px;">📄 Abrir en nueva pestaña ↗</a>';
+                    ov.appendChild(err);
                 }
             };
-            img.src = srcThumb;
+            img.src = srcHQ;
             ov.appendChild(img);
         };
 
@@ -13753,7 +13776,7 @@ document.addEventListener('DOMContentLoaded', function () {
     </div>
 
     <input type="file" id="inputTicketCamara" accept="image/*" capture="environment" style="position:fixed;top:-200px;left:-200px;width:1px;height:1px;" onchange="window._onTicketCapturado(this)">
-    <div id="modalTicketViewer" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,0.85);">
+    <div id="modalTicketViewer" style="display:none;position:fixed;inset:0;z-index:2147483647;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,0.85);">
         <div class="glass-card w-full max-w-2xl rounded-2xl border border-slate-700 overflow-hidden flex flex-col" style="max-height:90vh;">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/80 shrink-0">
                 <span id="ticketViewerTitulo" class="text-[11px] font-black text-emerald-400 uppercase tracking-widest"></span>
