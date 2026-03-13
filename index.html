@@ -8314,10 +8314,8 @@ const fecha =
     mostrarToast(`✓ Compra de $${Utils.fmt(total)} registrada`);
 
     // Envío a Sheets
-
-
-// Envío a Sheets
-setTimeout(() => {
+    function _construirYEnviarCompra(ticketUrl) {
+        setTimeout(() => {
 
 const idCompraLocal = 'C-' + Date.now();
 let efectivoRestante = efectivo;
@@ -8328,7 +8326,7 @@ numeroCompra: idCompraLocal,
 fecha,
 fechaISO: fecha,
 proveedor,
-ticket: _ticketDataCompra || null,
+ticket: ticketUrl || null,
 
 productos: carritoCompra.map(c => {
 
@@ -8336,25 +8334,10 @@ const prod = _sheetProductos.find(p => p.id === c.id) || {};
 const costoFinal = c.costoModificado ? c.costo : (prod.costo || c.costo || 0);
 const totalProducto = (c.cantidad || 0) * costoFinal;
 
-let pagoEfectivoProd = 0;
-let pagoCreditoProd = 0;
-
-if (efectivoRestante > 0) {
-
-if (efectivoRestante >= totalProducto) {
-pagoEfectivoProd = totalProducto;
-pagoCreditoProd = 0;
-efectivoRestante -= totalProducto;
-} else {
-pagoEfectivoProd = efectivoRestante;
-pagoCreditoProd = totalProducto - efectivoRestante;
-efectivoRestante = 0;
-}
-
-} else {
-pagoEfectivoProd = 0;
-pagoCreditoProd = totalProducto;
-}
+// Distribución proporcional: cada producto paga efectivo en proporción a su peso
+const proporcion = total > 0 ? totalProducto / total : 0;
+const pagoEfectivoProd = Math.round(efectivo * proporcion * 100) / 100;
+const pagoCreditoProd  = Math.round(Math.max(0, totalProducto - pagoEfectivoProd) * 100) / 100;
 
 return {
 nombre: c.nombre,
@@ -8378,7 +8361,19 @@ formaPago: pagoCreditoProd > 0 ? formaPagoFinal : 'EFECTIVO'
 // usar la función con reintento
 enviarCompraSheets(payload);
 
-},0);}
+        }, 0);
+    } // fin _construirYEnviarCompra
+
+    // Si hay ticket base64, subirlo a ImgBB primero (alta calidad)
+    if (_ticketDataCompra && _ticketDataCompra.startsWith('data:')) {
+        mostrarToast('⏳ Subiendo ticket...');
+        subirTicketImgBB(_ticketDataCompra, function(url) {
+            _construirYEnviarCompra(url || _ticketDataCompra);
+        });
+    } else {
+        _construirYEnviarCompra(_ticketDataCompra);
+    }
+}
 
 function enviarCompraSheets(payload, intento = 1){
 
