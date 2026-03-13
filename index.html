@@ -8672,10 +8672,12 @@ container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
 
         window.previewEditCompraTicket = function(input) {
             const file = input.files[0];
+            console.log('[TICKET DBG] previewEditCompraTicket llamada, file:', file ? file.name : 'ninguno');
             if (!file) return;
             const reader = new FileReader();
             reader.onload = e => {
                 window._editCompraTicketData = e.target.result;
+                console.log('[TICKET DBG] FileReader ok, _editCompraTicketData seteado, length:', e.target.result.length);
                 document.getElementById('btnVerTicketEdit').style.display = 'inline-block';
                 document.getElementById('btnQuitarTicketEdit').style.display = 'inline-block';
                 const label = document.getElementById('labelTicketEdit');
@@ -8709,6 +8711,7 @@ container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
         };
 
         function guardarEditarCompra() {
+            console.log('[TICKET DBG] guardarEditarCompra() llamada, _editandoCompraIdx:', _editandoCompraIdx);
             if (_editandoCompraIdx === -1) return;
             const compra  = _sheetCompras[_editandoCompraIdx];
             const prov    = document.getElementById('editCompraProveedor').value.trim() || compra.proveedor;
