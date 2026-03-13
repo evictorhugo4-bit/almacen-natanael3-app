@@ -5865,7 +5865,15 @@ return;
                 return true;
             });
 
-            // DEBUG eliminado
+            // DEBUG préstamos
+            console.log('[PREST DBG] idCl:', idCl, '| nomCl:', nomCl);
+            console.log('[PREST DBG] egresosNegTodos total:', egresosNegTodos.length);
+            console.log('[PREST DBG] haySheetParaCliente:', haySheetParaCliente);
+            console.log('[PREST DBG] egresosNegCliente count:', egresosNegCliente.length);
+            if (egresosNegCliente.length > 0) console.log('[PREST DBG] primer egreso:', JSON.stringify(egresosNegCliente[0]));
+            // buscar por nombre también por si acaso
+            const _dbgEgr = egresosNegTodos.filter(e => String(e.cliente||'').trim().toUpperCase() === nomCl);
+            console.log('[PREST DBG] por nombre (nomCl):', _dbgEgr.length, _dbgEgr.length>0?JSON.stringify(_dbgEgr[0]):'');
             const totalCredito = egresosNegCliente.reduce((s,e) => s + (parseFloat(e.credito)||0), 0);
             const totalPagado  = pagoEgrNegAll
                 .filter(p => String(p.idCliente || '').trim() === idCl)
