@@ -5441,38 +5441,59 @@ console.log("CLIENTE COMPLETO:", c);
             const nombre = document.getElementById('cNombre').value.trim();
             if (!nombre) { mostrarToast('El nombre es obligatorio', 'error'); return; }
 
-            const imgEl = document.getElementById('clienteFotoPreview');
-            const foto  = !imgEl.classList.contains('hidden') && imgEl.src.startsWith('data:') ? imgEl.src : '';
+            const imgEl    = document.getElementById('clienteFotoPreview');
+            const esBase64 = !imgEl.classList.contains('hidden') && imgEl.src.startsWith('data:');
+            const fotoBase64 = esBase64 ? imgEl.src : '';
 
-            const id = document.getElementById('editClienteId').value;
-            if (id) {
-                const idx = clientesDB.findIndex(c => c.id === id);
-                if (idx !== -1) {
-                    clientesDB[idx] = { ...clientesDB[idx], nombre, celular: document.getElementById('cCelular').value.trim(), direccion: document.getElementById('cDireccion').value.trim(), foto: foto || clientesDB[idx].foto };
+            const id               = document.getElementById('editClienteId').value;
+            const celular          = document.getElementById('cCelular').value.trim();
+            const direccion        = document.getElementById('cDireccion').value.trim();
+            const clienteExistente = id ? clientesDB.find(c => c.id === id) : null;
+            const idSheet          = clienteExistente ? (clienteExistente.idSheet || clienteExistente.id || '') : '';
+
+            // Finaliza el guardado una vez que tenemos la URL de imagen definitiva
+            function finalizarGuardado(urlImagen) {
+                const fotoFinal = urlImagen || (clienteExistente ? clienteExistente.foto || '' : '');
+
+                // Actualizar clientesDB local
+                if (id) {
+                    const idx = clientesDB.findIndex(c => c.id === id);
+                    if (idx !== -1) {
+                        clientesDB[idx] = { ...clientesDB[idx], nombre, celular, direccion, foto: fotoFinal };
+                    }
+                } else {
+                    clientesDB.push({ id: 'C' + Utils.genId(), nombre, celular, direccion, foto: fotoFinal, pagos: [] });
                 }
-            } else {
-                clientesDB.push({ id: 'C' + Utils.genId(), nombre, celular: document.getElementById('cCelular').value.trim(), direccion: document.getElementById('cDireccion').value.trim(), foto, pagos: [] });
+
+                // Payload con nombres EXACTOS de las columnas del sheet
+                // El base64 NO se manda directo — ya fue convertido a URL por ImgBB
+                // Esto evita que el payload largo pise el IDCLIENTE en el sheet
+                const clientePayload = {
+                    tipo:      'cliente',
+                    idCliente: idSheet,   // columna IDCLIENTE — identifica la fila a actualizar
+                    nombre,
+                    celular,
+                    direccion,
+                    imagen:    fotoFinal  // columna IMAGEN del sheet (nunca base64 directo)
+                };
+                fetchSheets({ method: 'POST', body: JSON.stringify(clientePayload) });
+
+                cerrarEditorCliente();
+                renderClientes();
+                mostrarToast('Cliente guardado');
             }
-            
 
-            // Enviar a Google Sheets — incluir idSheet para que el script ubique la fila correcta al editar
-            const clienteEditado = id ? clientesDB.find(c => c.id === id) : null;
-            const idSheet = clienteEditado ? (clienteEditado.idSheet || clienteEditado.id || '') : '';
-            const clientePayload = {
-                tipo:      'cliente',
-                id:        idSheet,
-                nombre,
-                celular:   document.getElementById('cCelular').value.trim(),
-                direccion: document.getElementById('cDireccion').value.trim(),
-                foto:      foto || (clienteEditado ? clienteEditado.foto || '' : '')
-            };
-            fetchSheets({method:'POST', body:JSON.stringify(clientePayload)});
-
-            cerrarEditorCliente();
-            renderClientes();
-            mostrarToast(`✓ Cliente "${nombre}" guardado`);
+            // Si hay foto nueva en base64, subirla a ImgBB PRIMERO
+            // El base64 largo en el JSON era lo que pisaba el IDCLIENTE en el sheet
+            if (fotoBase64) {
+                mostrarToast('Subiendo imagen...');
+                subirFotoImgBB(fotoBase64, function(urlResultante) {
+                    finalizarGuardado(urlResultante);
+                });
+            } else {
+                finalizarGuardado('');
+            }
         }
-
         function eliminarCliente(id) {
             const c = clientesDB.find(c => c.id === id);
             if (!c || !confirm(`¿Eliminar a "${c.nombre}"?`)) return;
