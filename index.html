@@ -3622,7 +3622,6 @@ _sheetProductos.forEach(p => {
             });
         }
 
-        // Sube ticket SIN comprimir — calidad original
         function subirTicketImgBB(dataUrl, callback) {
             const base64 = dataUrl.split(',')[1];
             const mime   = (dataUrl.match(/data:(image\/\w+);/) || [])[1] || 'image/jpeg';
@@ -7150,7 +7149,12 @@ function selGeneroIngEgr(val){
             const tks = c ? (c.tickets || (c.ticket?[c.ticket]:[])) : [];
             titulo.textContent = 'TICKET' + (tks.length>1?' '+(ti+1):'') + (c?' — '+(c.proveedor||'').toUpperCase():'');
             if (t.startsWith('data:') || t.startsWith('http')) {
-                inner.innerHTML = `<img src="${t}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
+                inner.innerHTML = `
+                  <div id="ticketLoadingMsg" style="color:#94a3b8;text-align:center;font-size:13px;padding:20px;">⏳ Cargando imagen...</div>
+                  <img src="${t}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:none;margin:0 auto;"
+                    onload="this.style.display='block';var m=document.getElementById('ticketLoadingMsg');if(m)m.remove();"
+                    onerror="this.style.display='none';var m=document.getElementById('ticketLoadingMsg');if(m)m.innerHTML='❌ Error al cargar imagen. <a href=\'${t}\' target=\'_blank\' style=\'color:#60a5fa;\'>Abrir en nueva pestaña</a>';">
+                `;
             } else {
                 inner.innerHTML = `<p style="color:#94a3b8;text-align:center;">No se puede previsualizar este archivo.<br><a href="${t}" target="_blank" style="color:#60a5fa;">Abrir en nueva pestaña</a></p>`;
             }
