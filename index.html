@@ -7036,6 +7036,12 @@ function selGeneroIngEgr(val){
         window._streamProvTicket2 = null;
         window._ticketDataProv2 = null;
 
+        window.editarCompraDesdeProveedor = function(idC) {
+            const idx = _sheetCompras.findIndex(x => String(x.id||'').trim() === String(idC).trim());
+            if (idx === -1) { mostrarToast('Compra no encontrada'); return; }
+            abrirEditarCompra(idx);
+        };
+
         window.abrirTicketProvModal = function(idC) {
             window._ticketProvIdCompra = idC;
             window._ticketDataProv2 = null;
@@ -8314,8 +8320,24 @@ if (filtradas.length === 0) {
     return;
 }
 
-const filtradasOrdenadas = [...filtradas].sort((a,b) => new Date(b.fechaISO||b.fecha||0) - new Date(a.fechaISO||a.fecha||0));
-container.innerHTML = filtradasOrdenadas.map((c, idx) => {
+// Agrupar por IDCOMPRAS (id) — todos los productos de la misma compra juntos
+const gruposMap = new Map();
+filtradas.forEach((c, realIdx) => {
+    const key = String(c.id||'').trim() || String(c.fechaISO||c.fecha||'').trim();
+    if (!gruposMap.has(key)) {
+        gruposMap.set(key, { c, realIdx, extraItems: [] });
+    } else {
+        // Agregar items de filas duplicadas al grupo principal
+        const g = gruposMap.get(key);
+        (c.items||[]).forEach(i => g.extraItems.push(i));
+    }
+});
+const grupos = Array.from(gruposMap.values())
+    .sort((a,b) => new Date(b.c.fechaISO||b.c.fecha||0) - new Date(a.c.fechaISO||a.c.fecha||0));
+
+container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
+    const idx = realIdx;
+    const todosItems = [...(c.items||[]), ...extraItems];
 
     const ticketBtn = c.ticket
         ? `<button onclick="verTicketCompra(${idx})"
@@ -8325,62 +8347,43 @@ container.innerHTML = filtradasOrdenadas.map((c, idx) => {
         : '';
 
     const creditoSpan = c.credito > 0
-        ? `<span class="block text-[9px] font-black text-red-400">
-            Crédito: $${Utils.fmt(c.credito)}
-           </span>`
-        : '';
-
+        ? `<span class="block text-[9px] font-black text-red-400">Crédito: $${Utils.fmt(c.credito)}</span>` : '';
     const efectivoSpan = c.efectivo > 0
-        ? `<span class="block text-[9px] font-black text-emerald-400">
-            Efectivo: $${Utils.fmt(c.efectivo)}
-           </span>`
-        : '';
+        ? `<span class="block text-[9px] font-black text-emerald-400">Efectivo: $${Utils.fmt(c.efectivo)}</span>` : '';
 
-    const prodStr = (c.items || [])
-        .map(i => (i.cantidad ? i.cantidad + 'x ' : '') + i.nombre)
-        .join(', ')
-        .substring(0, 80);
+    const itemsHtml = todosItems.map(i =>
+        `<div style="display:flex;align-items:center;gap:4px;padding:3px 0;border-bottom:1px solid #1e293b30;">
+            <span style="font-size:9px;color:#94a3b8;">📦</span>
+            <span style="font-size:10px;color:#cbd5e1;flex:1;">${Utils.escHtml((i.cantidad>1?i.cantidad+'x ':'')+i.nombre)}</span>
+            ${i.costo>0?`<span style="font-size:9px;color:#64748b;font-family:monospace;">$${Utils.fmt((i.costo||0)*(i.cantidad||1))}</span>`:''}
+        </div>`
+    ).join('');
 
     return `
         <div class="glass-card w-full max-w-none p-4 rounded-2xl border border-slate-800 space-y-2">
-            <div class="flex justify-between items-start">
+            <div class="flex justify-between items-start gap-2">
                 <div class="flex-1 min-w-0">
-                    <p class="text-[9px] font-black text-emerald-500 uppercase">
-                        ${Utils.escHtml(c.fecha)}
-                    </p>
-                    <p class="font-black text-white uppercase text-sm">
-                        ${Utils.escHtml(c.proveedor)}
-                    </p>
-                    <p class="text-[9px] text-slate-500">
-                        ${Utils.escHtml(prodStr)}
-                    </p>
+                    <p class="text-[9px] font-black text-emerald-500 uppercase">${Utils.escHtml(c.fecha)}</p>
+                    <p class="font-black text-white uppercase text-sm">${Utils.escHtml(c.proveedor)}</p>
                     ${ticketBtn}
                 </div>
-
-                <div class="text-right flex flex-col items-end gap-1">
-                    <span class="block text-sm font-black text-white font-mono">
-                        $${Utils.fmt(c.total)}
-                    </span>
-                    ${creditoSpan}
-                    ${efectivoSpan}
-
+                <div class="text-right flex flex-col items-end gap-1 flex-shrink-0">
+                    <span class="block text-sm font-black text-white font-mono">$${Utils.fmt(c.total)}</span>
+                    ${creditoSpan}${efectivoSpan}
                     <div class="flex gap-1 mt-1">
                         <button onclick="abrirPagoCompra('${c.id}')"
                             style="padding:5px 9px;background:#1e3a5f;color:#60a5fa;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:900;"
-                            title="Registrar pago">🧾</button>
-
+                            title="Registrar pago">💳</button>
                         <button onclick="abrirEditarCompra(${idx})"
-                            style="padding:5px 9px;background:#1e3a5f;color:#60a5fa;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:900;">
-                            ✏
-                        </button>
-
+                            style="padding:5px 9px;background:#1e3a5f;color:#60a5fa;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:900;"
+                            title="Editar">✏️</button>
                         <button onclick="confirmarEliminarCompra('${c.id}')"
-                            style="padding:5px 9px;background:#7f1d1d;color:#fca5a5;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:900;">
-                            🗑
-                        </button>
+                            style="padding:5px 9px;background:#7f1d1d;color:#fca5a5;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:900;"
+                            title="Eliminar">🗑️</button>
                     </div>
                 </div>
             </div>
+            ${itemsHtml ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #1e293b;">${itemsHtml}</div>` : ''}
         </div>
     `;
 
@@ -10388,7 +10391,6 @@ window.verDetalleProveedor = function(tipo, id) {
 
     // -- COMPRAS/GASTOS PENDIENTES: agrupadas por fechaISO --
     const gruposCompra = new Map();
-    if (comprasProveedor.length > 0) console.warn('[COMPRAS DBG] primera:', JSON.stringify({id:comprasProveedor[0].id, credito:comprasProveedor[0].credito, total:comprasProveedor[0].total, fechaISO:comprasProveedor[0].fechaISO, items:comprasProveedor[0].items?.length}));
     comprasProveedor.forEach(c => {
         const idC = esGasto ? String(c.idSheet||c.id||'').trim() : String(c.id||'').trim();
         const pagadoEsta = esGasto
@@ -10404,14 +10406,12 @@ window.verDetalleProveedor = function(tipo, id) {
         }
         const g = gruposCompra.get(idBase);
         if (!g.ticket && c.ticket) g.ticket = c.ticket;
-        // Calcular subtotal real de cada item para el saldo proporcional
         const itemsC = c.items && c.items.length > 0 ? c.items
             : esGasto ? [{nombre: (c.detalle||c.concepto||'—'), cantidad:1, costo: c.credito}]
             : [{nombre: c.producto||'—', cantidad:1, costo: c.credito}];
         const totalItems = itemsC.reduce((s,i) => s + (parseFloat(i.costo||i.precio||0))*(parseFloat(i.cantidad)||1), 0);
         itemsC.forEach(item => {
             const sub = (parseFloat(item.costo||item.precio||0)) * (parseFloat(item.cantidad)||1);
-            // Saldo proporcional de este item
             const saldoItem = totalItems > 0 ? Math.round(saldo * sub / totalItems) : sub;
             g.items.push({...item, _saldoItem: saldoItem, _idC: idC});
             g.saldoTotal += saldoItem;
@@ -10440,7 +10440,10 @@ window.verDetalleProveedor = function(tipo, id) {
             return `<div style="background:#0f172a;border:1px solid #7f1d1d;border-radius:10px;padding:10px;margin-bottom:6px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                     <span style="font-size:9px;font-weight:900;color:#10b981;text-transform:uppercase;">${Utils.escHtml(fecha||'')}</span>
-                    <div style="display:flex;align-items:center;gap:6px;">
+                    <div style="display:flex;align-items:center;gap:4px;">
+                        <button onclick="editarCompraDesdeProveedor('${idPago}')"
+                            style="padding:3px 7px;background:#1e3a5f;color:#60a5fa;border:1px solid #1e40af;border-radius:6px;cursor:pointer;font-size:12px;line-height:1;"
+                            title="Editar compra">✏️</button>
                         <button onclick="abrirTicketProvModal('${idPago}')"
                             style="padding:3px 7px;background:#1e293b;color:${ticket?'#94a3b8':'#475569'};border:1px ${ticket?'solid #334155':'dashed #475569'};border-radius:6px;cursor:pointer;font-size:12px;line-height:1;"
                             title="${ticket?'Ver ticket':'Subir ticket'}">${ticket?'🧾':'📷'}</button>
