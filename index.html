@@ -5555,14 +5555,11 @@ console.log("CLIENTE COMPLETO:", c);
         return s + Math.max(0, credito - pagadoVenta);
     }, 0);
 
-    // Sumar préstamos pendientes (egresosNegocio credito - pagos)
-    const egresosTodos = typeof _sheetEgresosNegocio !== 'undefined' ? _sheetEgresosNegocio : [];
-    const egresosSheet = egresosTodos.filter(e => e.idSheet && e.idCliente);
-    const haySheet     = egresosSheet.some(e => String(e.idCliente).trim() === idCl);
-    const fuenteEgr    = haySheet ? egresosSheet : egresosTodos;
-    const vistos       = new Set();
+    // Sumar préstamos pendientes (ingresosNegocio credito - pagos de _sheetPagoIngNeg)
+    const ingTodos = typeof _sheetIngresosNegocio !== 'undefined' ? _sheetIngresosNegocio : [];
+    const vistos   = new Set();
     let totalPrestamos = 0;
-    fuenteEgr.forEach(e => {
+    ingTodos.forEach(e => {
         const eIdCl = String(e.idCliente || '').trim();
         const eNom  = String(e.cliente   || '').trim().toUpperCase();
         const match = (eIdCl && eIdCl === idCl) || (!eIdCl && nomCl && eNom === nomCl);
@@ -5572,10 +5569,17 @@ console.log("CLIENTE COMPLETO:", c);
         vistos.add(key);
         totalPrestamos += parseFloat(e.credito || 0);
     });
-    const todosPagosEgr = [...(_sheetPagoEgrNeg || []), ...(_pagoEgrNegSheet || [])];
-    const pagadoPrestamos = todosPagosEgr
-        .filter(p => String(p.idCliente || p.IDCLIENTE || '').trim() === idCl)
-        .reduce((s, p) => s + parseFloat(p.monto || p.MONTO || 0), 0);
+    const ingCliente = ingTodos.filter(e => {
+        const eIdCl = String(e.idCliente || '').trim();
+        const eNom  = String(e.cliente   || '').trim().toUpperCase();
+        return (eIdCl && eIdCl === idCl) || (!eIdCl && nomCl && eNom === nomCl);
+    });
+    const pagadoPrestamos = (_sheetPagoIngNeg || [])
+        .filter(p => {
+            const pIdIng = String(p.IDINGRESOSNEGOCIO || '').trim();
+            return !pIdIng || ingCliente.some(e => String(e.idSheet||'').trim() === pIdIng);
+        })
+        .reduce((s, p) => s + parseFloat(p.MONTO || 0), 0);
 
     return totalCredito + Math.max(0, totalPrestamos - pagadoPrestamos);
 }
@@ -12232,6 +12236,9 @@ if (indicator) indicator.classList.remove('hidden');
                         abrirDetalleCliente(clienteDetalleId);
                     }
                 }
+                // Refrescar lista de clientes para mostrar deuda total actualizada
+                const _vcl = document.getElementById('vistaClientes');
+                if (_vcl && !_vcl.classList.contains('hidden')) renderClientes();
                 console.log('✓ Datos secundarios procesados');
             } catch(e) {
                 console.error('Error procesando datos secundarios:', e);
