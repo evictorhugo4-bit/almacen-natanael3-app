@@ -8311,6 +8311,7 @@ const fecha =
     const _carritoSnapshot = carritoCompra.map(c => Object.assign({}, c));
     const _totalSnapshot   = total;
     const _efectivoSnapshot = efectivo;
+    const _ticketSnapshot  = _ticketDataCompra; // ← capturar ticket ANTES de que resetTicketUI lo borre
 
     cerrarNuevaCompra();
     resetTicketUI();
@@ -8365,13 +8366,13 @@ enviarCompraSheets(payload);
     } // fin _construirYEnviarCompra
 
     // Si hay ticket base64, subirlo a ImgBB primero (alta calidad)
-    if (_ticketDataCompra && _ticketDataCompra.startsWith('data:')) {
+    if (_ticketSnapshot && _ticketSnapshot.startsWith('data:')) {
         mostrarToast('⏳ Subiendo ticket...');
-        subirTicketImgBB(_ticketDataCompra, function(url) {
-            _construirYEnviarCompra(url || _ticketDataCompra);
+        subirTicketImgBB(_ticketSnapshot, function(url) {
+            _construirYEnviarCompra(url || _ticketSnapshot);
         });
     } else {
-        _construirYEnviarCompra(_ticketDataCompra);
+        _construirYEnviarCompra(_ticketSnapshot);
     }
 }
 
@@ -8741,18 +8742,19 @@ container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
 
             // Actualizar filas existentes — NO insertar nuevas
             const ticketFinal = compra.ticket || null;
+            const _idParaSheet = compra.idSheet || compra.id; // usar idSheet si existe (compras cargadas del sheet)
             if (ticketFinal) {
                 // Si hay ticket nuevo, subirlo a ImgBB primero
                 if (ticketFinal.startsWith('data:')) {
                     subirTicketImgBB(ticketFinal, function(url) {
                         compra.ticket = url || ticketFinal;
-                        editarEnSheet({ tipo: 'actualizar_compra', idCompra: compra.id, proveedor: prov, ticket: compra.ticket });
+                        editarEnSheet({ tipo: 'actualizar_compra', idCompra: _idParaSheet, proveedor: prov, ticket: compra.ticket });
                     });
                 } else {
-                    editarEnSheet({ tipo: 'actualizar_compra', idCompra: compra.id, proveedor: prov, ticket: ticketFinal });
+                    editarEnSheet({ tipo: 'actualizar_compra', idCompra: _idParaSheet, proveedor: prov, ticket: ticketFinal });
                 }
             } else {
-                editarEnSheet({ tipo: 'actualizar_compra', idCompra: compra.id, proveedor: prov });
+                editarEnSheet({ tipo: 'actualizar_compra', idCompra: _idParaSheet, proveedor: prov });
             }
 
             toggleModal('modalEditarCompra', false);
