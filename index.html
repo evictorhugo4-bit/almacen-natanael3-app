@@ -3622,6 +3622,31 @@ _sheetProductos.forEach(p => {
             });
         }
 
+        // Sube ticket SIN comprimir — calidad original
+        function subirTicketImgBB(dataUrl, callback) {
+            const base64 = dataUrl.split(',')[1];
+            const mime   = (dataUrl.match(/data:(image\/\w+);/) || [])[1] || 'image/jpeg';
+            const IMGBB_KEY = '0ee065ced332ac96486ee8e8daee84ae';
+            const formData = new FormData();
+            formData.append('image', base64);
+            fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_KEY, {
+                method: 'POST', body: formData
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    callback(res.data.url);
+                } else {
+                    mostrarToast('⚠ Error al subir ticket', 'error');
+                    callback(dataUrl); // fallback base64 original
+                }
+            })
+            .catch(() => {
+                mostrarToast('⚠ Sin conexión', 'error');
+                callback(dataUrl);
+            });
+        }
+
         function comprimirFotoParaSheet(dataUrl, callback) {
             try {
                 const img = new Image();
@@ -7237,7 +7262,7 @@ function selGeneroIngEgr(val){
             if (!c) { mostrarToast('Compra no encontrada'); return; }
             mostrarToast('Subiendo ticket...');
             // Subir a ImgBB para no mandar base64 gigante al sheet
-            subirFotoImgBB(window._ticketDataProv2, function(url) {
+            subirTicketImgBB(window._ticketDataProv2, function(url) {
                 const ticketUrl = url || window._ticketDataProv2;
                 if (!c.tickets) c.tickets = c.ticket ? [c.ticket] : [];
                 c.tickets.push(ticketUrl);
@@ -8724,7 +8749,7 @@ container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
             if (ticketFinal) {
                 // Si hay ticket nuevo, subirlo a ImgBB primero
                 if (ticketFinal.startsWith('data:')) {
-                    subirFotoImgBB(ticketFinal, function(url) {
+                    subirTicketImgBB(ticketFinal, function(url) {
                         compra.ticket = url || ticketFinal;
                         editarEnSheet({ tipo: 'actualizar_compra', idCompra: compra.id, proveedor: prov, efectivo: efect, credito: cred, total: efect+cred, ticket: compra.ticket });
                     });
