@@ -7053,12 +7053,17 @@ function selGeneroIngEgr(val){
             document.getElementById('inputTicketArchivoProv2').value = '';
             // Si la compra ya tiene ticket, mostrarlo
             const c = _sheetCompras.find(x => String(x.id||'').trim() === String(idC).trim());
-            if (c && c.ticket) {
-                window._ticketDataProv2 = c.ticket;
+            const existingTickets = c ? (c.tickets || (c.ticket ? [c.ticket] : [])) : [];
+            if (existingTickets.length > 0) {
+                // Mostrar todos los tickets existentes
                 const inner = document.getElementById('ticketPreviewInnerProv2');
-                inner.innerHTML = `<img src="${c.ticket}" style="max-width:100%;max-height:150px;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
+                inner.innerHTML = existingTickets.map((t,i) =>
+                    `<div style="position:relative;margin-bottom:8px;">
+                        <img src="${t}" style="max-width:100%;max-height:120px;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">
+                        <span style="position:absolute;top:4px;left:4px;background:#0f172a;color:#94a3b8;font-size:9px;font-weight:900;padding:2px 6px;border-radius:4px;">Ticket ${existingTickets.length>1?i+1:''}</span>
+                    </div>`
+                ).join('');
                 document.getElementById('ticketPreviewProv2').style.display = 'block';
-                document.getElementById('ticketBotonesProv2').style.display = 'none';
             }
             // Abrir modal — forzar al frente
             const m = document.getElementById('modalTicketProv');
@@ -7134,9 +7139,11 @@ function selGeneroIngEgr(val){
             const idC = window._ticketProvIdCompra;
             const c = _sheetCompras.find(x => String(x.id||'').trim() === String(idC).trim());
             if (!c) { mostrarToast('Compra no encontrada'); return; }
-            c.ticket = window._ticketDataProv2;
-            fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, ticket:window._ticketDataProv2, _soloTicket:true }) });
-            mostrarToast('✓ Ticket guardado');
+            if (!c.tickets) c.tickets = c.ticket ? [c.ticket] : [];
+            c.tickets.push(window._ticketDataProv2);
+            c.ticket = c.tickets[0]; // compatibilidad
+            fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, tickets:c.tickets, ticket:c.tickets[0], _soloTicket:true }) });
+            mostrarToast('✓ Ticket ' + c.tickets.length + ' guardado');
             cerrarModalTicketProv();
         };
 
@@ -8339,11 +8346,12 @@ container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
     const idx = realIdx;
     const todosItems = [...(c.items||[]), ...extraItems];
 
-    const ticketBtn = c.ticket
-        ? `<button onclick="verTicketCompra(${idx})"
+    const tickets = c.tickets || (c.ticket ? [c.ticket] : []);
+    const ticketBtn = tickets.length > 0
+        ? tickets.map((t,ti) => `<button onclick="verTicketIdx(${idx},${ti})"
             style="margin-top:4px;padding:3px 10px;background:#1e3a5f;color:#60a5fa;border:1px solid #1d4ed8;border-radius:6px;cursor:pointer;font-size:10px;font-weight:900;display:inline-flex;align-items:center;gap:4px;">
-            📎 Ver ticket
-           </button>`
+            📎 Ticket ${tickets.length>1?ti+1:''}
+           </button>`).join('')
         : '';
 
     const creditoSpan = c.credito > 0
@@ -8439,6 +8447,18 @@ container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
                 }
             };
             reader.readAsDataURL(file);
+        };
+
+        window.verTicketIdx = function(listIdx, ticketIdx) {
+            const c = _sheetCompras[listIdx]; if (!c) return;
+            const tickets = c.tickets || (c.ticket ? [c.ticket] : []);
+            const t = tickets[ticketIdx]; if (!t) return;
+            const overlay = document.getElementById('modalTicketViewer');
+            const inner   = document.getElementById('ticketViewerInner');
+            const titulo  = document.getElementById('ticketViewerTitulo');
+            titulo.textContent = 'TICKET ' + (tickets.length>1?ticketIdx+1+' — ':'— ') + (c.proveedor||'').toUpperCase();
+            inner.innerHTML = `<img src="${t}" style="max-width:100%;max-height:70vh;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
+            overlay.classList.remove('hidden'); overlay.style.display = 'flex';
         };
 
         window.verTicketCompraById = function(idC) {
@@ -11500,8 +11520,9 @@ window._pagoVentasSheet = _pagoVentasSheet;
 
                         const proveedor = String(row['PROVEEDOR'] || row['Proveedor'] || '').trim() || '-';
                         const total = parseSheetNum(row['PAGO TOTAL'] || row['Pago Total']);
-                        const idCompra = String(row['NUMERO DE COMPRA'] || row['ID_COMPRAS'] || '').trim();
-                        const key = idCompra || (fechaRaw + '|' + proveedor + '|' + total);
+                        const idCompra = String(row['IDCOMPRAS'] || row['ID_COMPRAS'] || row['NUMERO DE COMPRA'] || '').trim();
+                        // Agrupar solo por IDCOMPRAS si existe, sino por fecha+proveedor (sin total — el total varía por fila)
+                        const key = idCompra || (fechaRaw + '|' + proveedor);
 
                         if (!comprasMap[key]) {
                             comprasMap[key] = {
@@ -11510,19 +11531,27 @@ window._pagoVentasSheet = _pagoVentasSheet;
                                 fecha: fechaDisplay,
                                 fechaISO: fechaRaw,
                                 proveedor: proveedor,
-                                total: total,
-                                efectivo: parseSheetNum(row['PAGO EFECTIVO'] || row['Pago Efectivo']),
-                                credito: parseSheetNum(row['PAGO CREDITO'] || row['Pago credito'] || row['Pago Credito']),
+                                total: 0,
+                                efectivo: 0,
+                                credito: 0,
                                 estado: String(row['ESTADO'] || row['Estado'] || '').trim(),
-                                ticket: String(row['TICKET'] || row['Ticket'] || '').trim() || null,
+                                tickets: String(row['TICKET'] || row['Ticket'] || '').trim() ? [String(row['TICKET'] || row['Ticket'] || '').trim()] : [],
                                 fromSheet: true,
                                 items: []
                             };
                         }
-                        comprasMap[key].items.push({
-                            nombre:   String(row['PRODUCTO'] || row['Producto'] || ''),
+                        // Acumular totales (cada fila tiene subtotal del item)
+                        comprasMap[key].total   += parseSheetNum(row['PAGO TOTAL']    || row['Pago Total']   || 0);
+                        comprasMap[key].efectivo+= parseSheetNum(row['PAGO EFECTIVO'] || row['Pago Efectivo']|| 0);
+                        comprasMap[key].credito += parseSheetNum(row['PAGO CREDITO']  || row['Pago credito'] || row['Pago Credito'] || 0);
+                        const tkVal = String(row['TICKET']||row['Ticket']||'').trim();
+                        if (tkVal && !comprasMap[key].tickets.includes(tkVal)) comprasMap[key].tickets.push(tkVal);
+                        const itemNombre = String(row['PRODUCTO'] || row['Producto'] || '').trim();
+                        if (itemNombre) comprasMap[key].items.push({
+                            nombre:   itemNombre,
                             cantidad: parseSheetNum(row['CANTIDAD'] || row['Cantidad'] || 0),
                             costo:    parseFloat(row['PRECIO DE COSTO'] || row['Precio Costo']) || 0,
+                            subtotal: parseSheetNum(row['PAGO TOTAL'] || row['Pago Total'] || 0),
                             categoria: String(row['CATEGORIA'] || row['Categoria'] || ''),
                             tipoVenta: String(row['TIPO DE VENTA'] || row['Tipo de Venta'] || ''),
                             formaPago: String(row['FORMA DE PAGO'] || row['Forma de Pago'] || '')
