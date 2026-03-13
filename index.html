@@ -8444,8 +8444,10 @@ if (filtradas.length === 0) {
 const gruposMap = new Map();
 filtradas.forEach((c, realIdx) => {
     const key = String(c.id||'').trim() || String(c.fechaISO||c.fecha||'').trim();
+    // Usar el índice real en _sheetCompras, no en filtradas
+    const idxEnSheet = _sheetCompras.indexOf(c);
     if (!gruposMap.has(key)) {
-        gruposMap.set(key, { c, realIdx, extraItems: [] });
+        gruposMap.set(key, { c, realIdx: idxEnSheet, extraItems: [] });
     } else {
         // Agregar items de filas duplicadas al grupo principal
         const g = gruposMap.get(key);
