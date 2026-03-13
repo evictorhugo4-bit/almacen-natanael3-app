@@ -3587,7 +3587,7 @@ _sheetProductos.forEach(p => {
             // URL de Drive vieja → intentar thumbnail igual
             const m = url.match(/\/d\/([\w-]+)/) || url.match(/[?&]id=([\w-]+)/);
             if (!m) return url;
-            return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w300';
+            return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w1600';
         }
 
         // Sube imagen a ImgBB (hosting gratuito, URL permanente, funciona en móvil)
@@ -7042,25 +7042,53 @@ function selGeneroIngEgr(val){
                         ((window._ticketsProvCache && window._ticketsProvCache[idPago]) || []);
             const t = tks[ti != null ? ti : 0];
             if (!t) { mostrarToast('Ticket no encontrado'); return; }
-            const src = driveUrl(t);
-            // Crear overlay igual que se hace con fotos de productos
+            const srcOriginal = t;
+            const srcThumb = driveUrl(t);
+
             let ov = document.getElementById('_ticketOverlaySimple');
             if (!ov) {
                 ov = document.createElement('div');
                 ov.id = '_ticketOverlaySimple';
-                ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;padding:16px;';
-                ov.onclick = function() { ov.remove(); };
                 document.body.appendChild(ov);
-            } else {
-                ov.innerHTML = '';
-                ov.style.display = 'flex';
             }
+            ov.innerHTML = '';
+            ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;';
+            ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+
+            // Botón cerrar siempre visible
+            const btnCerrar = document.createElement('button');
+            btnCerrar.textContent = '✕ Cerrar';
+            btnCerrar.style.cssText = 'position:fixed;top:16px;right:16px;z-index:2147483647;background:#334155;color:#fff;border:none;border-radius:10px;padding:8px 18px;font-weight:900;font-size:13px;cursor:pointer;';
+            btnCerrar.onclick = function(e) { e.stopPropagation(); ov.remove(); };
+            ov.appendChild(btnCerrar);
+
+            // Indicador de carga
+            const loading = document.createElement('div');
+            loading.style.cssText = 'color:#94a3b8;font-size:12px;font-weight:700;text-transform:uppercase;margin-bottom:12px;letter-spacing:.06em;';
+            loading.textContent = '⏳ Cargando ticket...';
+            ov.appendChild(loading);
+
+            function mostrarError() {
+                loading.remove();
+                const wrap = document.createElement('div');
+                wrap.style.cssText = 'color:#94a3b8;text-align:center;';
+                wrap.innerHTML = '<p style="margin-bottom:12px;font-size:13px;">No se puede previsualizar el ticket.</p>'
+                    + '<a href="' + srcOriginal + '" target="_blank" style="color:#60a5fa;font-weight:900;font-size:13px;">📄 Abrir en nueva pestaña ↗</a>';
+                ov.appendChild(wrap);
+            }
+
             const img = document.createElement('img');
-            img.src = src;
-            img.style.cssText = 'max-width:100%;max-height:90vh;object-fit:contain;border-radius:12px;display:block;';
+            img.style.cssText = 'max-width:100%;max-height:82vh;object-fit:contain;border-radius:12px;display:block;box-shadow:0 0 40px rgba(0,0,0,0.8);';
+            img.onload = function() { loading.remove(); };
             img.onerror = function() {
-                ov.innerHTML = '<div style="color:#94a3b8;text-align:center;"><p style="margin-bottom:12px;">No se puede previsualizar.</p><a href="' + src + '" target="_blank" style="color:#60a5fa;font-weight:900;">Abrir en nueva pestaña ↗</a><br><br><button onclick="document.getElementById(\'_ticketOverlaySimple\').remove()" style="margin-top:8px;padding:6px 16px;background:#334155;color:white;border:none;border-radius:8px;cursor:pointer;">Cerrar</button></div>';
+                // Si falla el thumbnail de Drive, intentar URL original directa
+                if (img.src !== srcOriginal && srcOriginal !== srcThumb) {
+                    img.src = srcOriginal;
+                } else {
+                    mostrarError();
+                }
             };
+            img.src = srcThumb;
             ov.appendChild(img);
         };
 
