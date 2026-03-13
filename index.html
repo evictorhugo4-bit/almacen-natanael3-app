@@ -6743,7 +6743,7 @@ document.getElementById("modalNuevoProducto").classList.add("hidden");
     r.estado = cr > 0 ? 'PENDIENTE' : 'FINALIZADO';
 
     editarEnSheet({
-        tipo: ingNegAccionTipo,
+        tipo: ingNegAccionTipo === 'ingresosNegocio' ? 'actualizar_ingneg' : 'actualizar_egrneg',
         id: r.id,
         cliente: r.cliente,
         formaPago: r.formaPago,
@@ -7212,16 +7212,7 @@ function selGeneroIngEgr(val){
             document.getElementById('ticketBotonesProv').classList.add('hidden');
             if (nombre) document.getElementById('ticketNombreProv').textContent = nombre;
             window._ticketDataProv = dataUrl;
-            // Guardar en la compra si hay id vinculado
-            if (window._ticketProvIdCompra) {
-                const c = _sheetCompras.find(x => String(x.id||'').trim() === String(window._ticketProvIdCompra).trim());
-                if (c) {
-                    c.ticket = dataUrl;
-                    fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, ticket:dataUrl, _soloTicket:true }) });
-                    mostrarToast('✓ Ticket guardado');
-                }
-                window._ticketProvIdCompra = null;
-            }
+            window._ticketDataProv2 = dataUrl;
         };
 
         window.abrirNuevaCompraDesdeProveedor = function() {
@@ -8677,20 +8668,21 @@ container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
             if (window._editCompraTicketData !== undefined) compra.ticket = window._editCompraTicketData;
             
 
-            // Sincronizar con Sheet: eliminar la vieja y crear nueva con mismos datos
-            editarEnSheet({
-                tipo: 'compra', numeroCompra: compra.id, idCompra: compra.id,
-                fecha: compra.fecha, fechaISO: compra.fechaISO || '',
-                proveedor: prov, total: efect + cred, efectivo: efect, credito: cred,
-                ticket: compra.ticket || null,
-                productos: items.map(i => ({
-                    nombre: i.nombre, cantidad: i.cantidad, proveedor: prov,
-                    tipoVenta: '', estado: cred > 0 ? 'Pendiente' : 'Finalizado',
-                    departamento: '', categoria: '', precioCosto: i.costo || 0,
-                    precioVenta: 0, formaPago: cred > 0 ? (efect > 0 ? 'Mixto' : 'Crédito') : 'Efectivo',
-                    pagoEfectivo: efect, pagoCredito: cred, pagoTotal: efect + cred
-                }))
-            });
+            // Actualizar filas existentes — NO insertar nuevas
+            const ticketFinal = compra.ticket || null;
+            if (ticketFinal) {
+                // Si hay ticket nuevo, subirlo a ImgBB primero
+                if (ticketFinal.startsWith('data:')) {
+                    subirFotoImgBB(ticketFinal, function(url) {
+                        compra.ticket = url || ticketFinal;
+                        editarEnSheet({ tipo: 'actualizar_compra', idCompra: compra.id, proveedor: prov, efectivo: efect, credito: cred, total: efect+cred, ticket: compra.ticket });
+                    });
+                } else {
+                    editarEnSheet({ tipo: 'actualizar_compra', idCompra: compra.id, proveedor: prov, efectivo: efect, credito: cred, total: efect+cred, ticket: ticketFinal });
+                }
+            } else {
+                editarEnSheet({ tipo: 'actualizar_compra', idCompra: compra.id, proveedor: prov, efectivo: efect, credito: cred, total: efect+cred });
+            }
 
             toggleModal('modalEditarCompra', false);
             _editandoCompraIdx = -1;
@@ -10017,7 +10009,7 @@ const idCliente = cli ? (cli.id || cli.idSheet || '') : '';
     r.credito = Math.max(0, r.total - r.efectivo);
 
     editarEnSheet({
-        tipo: ingEgrTipo,
+        tipo: ingEgrTipo === 'ingreso' ? 'actualizar_ingreso' : 'actualizar_egreso',
         id: r.id,
         proveedor: r.proveedor,
         concepto: r.concepto,
@@ -10858,8 +10850,8 @@ function verDetalleProveedor(tipo, id){
 
         // SINCRONIZACIÓN GOOGLE SHEETS — Tiempo real (30s)
         // ══════════════════════════════════════════════════════
-        const SHEETS_URL  = 'https://script.google.com/macros/s/AKfycbyCByYXgJ9-wzrQ65-oPoEbLvCQ7cc8G6uiwfxw9LFvHUJI2BQ_q3oSz3DqdpBMbK99/exec';
-        const SHEETS_URL2 = 'https://script.google.com/macros/s/AKfycbyCByYXgJ9-wzrQ65-oPoEbLvCQ7cc8G6uiwfxw9LFvHUJI2BQ_q3oSz3DqdpBMbK99/exec';
+        const SHEETS_URL  = 'https://script.google.com/macros/s/AKfycbzdTjgSVPfNYz-rC784x9iYDj-8rA2L6KgdXwmdkP-lzuSy6i2nFL5eGsqgOoRgtZmN/exec';
+        const SHEETS_URL2 = 'https://script.google.com/macros/s/AKfycbzdTjgSVPfNYz-rC784x9iYDj-8rA2L6KgdXwmdkP-lzuSy6i2nFL5eGsqgOoRgtZmN/exec';
         function fetchSheets(options) {
             if (!options || options.method !== 'POST') {
                 fetch(SHEETS_URL2).catch(()=>{});
