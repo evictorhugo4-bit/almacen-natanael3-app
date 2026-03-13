@@ -8738,22 +8738,29 @@ container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
             compra.total     = efect + cred;
             compra.items     = items;
             if (window._editCompraTicketData !== undefined) compra.ticket = window._editCompraTicketData;
-            
 
             // Actualizar filas existentes — NO insertar nuevas
             const ticketFinal = compra.ticket || null;
-            const _idParaSheet = compra.idSheet || compra.id; // usar idSheet si existe (compras cargadas del sheet)
+            const _idParaSheet = compra.idSheet || compra.id;
+            console.log('[TICKET DBG] _editCompraTicketData:', window._editCompraTicketData ? window._editCompraTicketData.substring(0,40) : window._editCompraTicketData);
+            console.log('[TICKET DBG] compra.ticket:', compra.ticket ? String(compra.ticket).substring(0,40) : compra.ticket);
+            console.log('[TICKET DBG] ticketFinal:', ticketFinal ? String(ticketFinal).substring(0,40) : ticketFinal);
+            console.log('[TICKET DBG] compra.id:', compra.id, '| compra.idSheet:', compra.idSheet, '| _idParaSheet:', _idParaSheet);
             if (ticketFinal) {
                 // Si hay ticket nuevo, subirlo a ImgBB primero
                 if (ticketFinal.startsWith('data:')) {
+                    console.log('[TICKET DBG] → subiendo a ImgBB...');
                     subirTicketImgBB(ticketFinal, function(url) {
+                        console.log('[TICKET DBG] → ImgBB url:', url ? url.substring(0,60) : url);
                         compra.ticket = url || ticketFinal;
                         editarEnSheet({ tipo: 'actualizar_compra', idCompra: _idParaSheet, proveedor: prov, ticket: compra.ticket });
                     });
                 } else {
+                    console.log('[TICKET DBG] → ticket ya es URL, enviando directo');
                     editarEnSheet({ tipo: 'actualizar_compra', idCompra: _idParaSheet, proveedor: prov, ticket: ticketFinal });
                 }
             } else {
+                console.log('[TICKET DBG] → ticketFinal vacío, enviando SIN ticket');
                 editarEnSheet({ tipo: 'actualizar_compra', idCompra: _idParaSheet, proveedor: prov });
             }
 
