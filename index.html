@@ -8307,6 +8307,11 @@ const fecha =
 
     
 
+    // Capturar copia del carrito ANTES de cerrar/resetear (el cierre puede vaciarlo)
+    const _carritoSnapshot = carritoCompra.map(c => Object.assign({}, c));
+    const _totalSnapshot   = total;
+    const _efectivoSnapshot = efectivo;
+
     cerrarNuevaCompra();
     resetTicketUI();
     renderCompras();
@@ -8318,44 +8323,39 @@ const fecha =
         setTimeout(() => {
 
 const idCompraLocal = 'C-' + Date.now();
-let efectivoRestante = efectivo;
+
+// Construir productos con cálculo correcto: PAGO TOTAL = cantidad × costo
+// PAGO EFECTIVO y PAGO CREDITO proporcionales al total pagado
+const productosPayload = _carritoSnapshot.map(c => {
+    const prod = _sheetProductos.find(p => p.id === c.id) || {};
+    const costoFinal    = c.costoModificado ? c.costo : (prod.costo || c.costo || 0);
+    const pagoTotal     = Math.round((c.cantidad || 0) * costoFinal * 100) / 100;
+    const proporcion    = _totalSnapshot > 0 ? pagoTotal / _totalSnapshot : 0;
+    const pagoEfectivo  = Math.round(_efectivoSnapshot * proporcion * 100) / 100;
+    const pagoCredito   = Math.round(Math.max(0, pagoTotal - pagoEfectivo) * 100) / 100;
+    return {
+        nombre:       c.nombre,
+        cantidad:     c.cantidad,
+        tipoVenta:    prod.tipoVenta || '',
+        departamento: prod.depto || prod.departamento || '',
+        categoria:    prod.categoria || '',
+        precioCosto:  costoFinal,
+        precioVenta:  c.ventaModificada ? c.venta : (prod.precio || c.venta || 0),
+        pagoTotal:    pagoTotal,
+        pagoEfectivo: pagoEfectivo,
+        pagoCredito:  pagoCredito,
+        formaPago:    pagoCredito > 0 ? formaPagoFinal : 'EFECTIVO'
+    };
+});
 
 const payload = {
-tipo: 'compra',
-numeroCompra: idCompraLocal,
-fecha,
-fechaISO: fecha,
-proveedor,
-ticket: ticketUrl || null,
-
-productos: carritoCompra.map(c => {
-
-const prod = _sheetProductos.find(p => p.id === c.id) || {};
-const costoFinal = c.costoModificado ? c.costo : (prod.costo || c.costo || 0);
-const totalProducto = (c.cantidad || 0) * costoFinal;
-
-// Distribución proporcional: cada producto paga efectivo en proporción a su peso
-const proporcion = total > 0 ? totalProducto / total : 0;
-const pagoEfectivoProd = Math.round(efectivo * proporcion * 100) / 100;
-const pagoCreditoProd  = Math.round(Math.max(0, totalProducto - pagoEfectivoProd) * 100) / 100;
-
-return {
-nombre: c.nombre,
-cantidad: c.cantidad,
-tipoVenta: prod.tipoVenta || '',
-departamento: prod.depto || prod.departamento || '',
-categoria: prod.categoria || '',
-precioCosto: c.costoModificado ? c.costo : (prod.costo || c.costo || 0),
-precioVenta: c.ventaModificada ? c.venta : (prod.precio || c.venta || 0),
-
-pagoTotal: totalProducto,
-pagoEfectivo: pagoEfectivoProd,
-pagoCredito: pagoCreditoProd,
-
-formaPago: pagoCreditoProd > 0 ? formaPagoFinal : 'EFECTIVO'
-};
-
-})
+    tipo:          'compra',
+    numeroCompra:  idCompraLocal,
+    fecha,
+    fechaISO:      fecha,
+    proveedor,
+    ticket:        ticketUrl || null,
+    productos:     productosPayload
 };
 
 // usar la función con reintento
