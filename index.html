@@ -1063,13 +1063,7 @@ GUARDAR PRODUCTO
                 </div>
             </div>
 
-          <div style="display:flex;gap:8px;align-items:center;">
-              <button id="btnNuevaCompraProveedor" onclick="abrirNuevaCompraDesdeProveedor()"
-                  style="padding:6px 12px;background:#064e3b;color:#34d399;border:1px solid #065f46;border-radius:10px;cursor:pointer;font-size:10px;font-weight:900;text-transform:uppercase;">
-                  + Nueva Compra
-              </button>
-              <button onclick="toggleModal('modalDetalleProveedor',false)">✖</button>
-          </div></div>
+          <button onclick="toggleModal('modalDetalleProveedor',false)">✖</button>   </div>
 
 
         <div class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4">
@@ -1096,35 +1090,6 @@ GUARDAR PRODUCTO
 
             </div>
 
-
-            <!-- TICKET PROVEEDOR -->
-            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-700 space-y-2">
-                <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Ticket / Factura</label>
-                <div id="ticketPreviewProv" class="hidden relative">
-                    <div id="ticketPreviewInnerProv" class="w-full rounded-lg overflow-hidden bg-slate-950 flex items-center justify-center" style="min-height:80px;"></div>
-                    <button onclick="quitarTicketProv()" class="absolute top-1 right-1 bg-red-900 text-red-300 rounded-full w-6 h-6 flex items-center justify-center text-xs font-black border border-red-700" title="Quitar">✕</button>
-                </div>
-                <div id="ticketBotonesProv" class="flex gap-2">
-                    <label class="flex-1 flex items-center justify-center gap-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg cursor-pointer text-[10px] font-black uppercase transition-all border border-slate-700" title="Subir imagen o PDF">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Subir
-                        <input type="file" id="inputTicketArchivoProv" accept="image/*,.pdf" class="hidden" onchange="cargarTicketArchivoProv(this)">
-                    </label>
-                    <button onclick="abrirCamaraTicketProv()" class="flex-1 flex items-center justify-center gap-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-black uppercase transition-all border border-slate-700" title="Sacar foto">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                        Cámara
-                    </button>
-                </div>
-                <div id="camaraContainerProv" class="hidden space-y-2">
-                    <video id="camaraVideoProv" autoplay playsinline class="w-full rounded-lg" style="max-height:180px;object-fit:cover;background:#000;"></video>
-                    <div class="flex gap-2">
-                        <button onclick="capturarFotoTicketProv()" class="flex-1 py-2 bg-emerald-600 text-black font-black text-[10px] uppercase rounded-lg">📸 Capturar</button>
-                        <button onclick="cerrarCamaraTicketProv()" class="flex-1 py-2 bg-slate-700 text-slate-300 font-black text-[10px] uppercase rounded-lg">✕ Cerrar</button>
-                    </div>
-                    <canvas id="camaraCanvasProv" class="hidden"></canvas>
-                </div>
-                <p id="ticketNombreProv" style="font-size:9px;color:#475569;margin-top:2px;"></p>
-            </div>
 
             <!-- COMPRAS PENDIENTES -->
             <div>
@@ -7024,10 +6989,19 @@ function selGeneroIngEgr(val){
 
         window.quitarTicketProv = function() {
             window._ticketDataProv = null;
-            document.getElementById('ticketPreviewProv').classList.add('hidden');
-            document.getElementById('ticketBotonesProv').classList.remove('hidden');
-            document.getElementById('ticketNombreProv').textContent = '';
-            document.getElementById('inputTicketArchivoProv').value = '';
+            const prev = document.getElementById('ticketPreviewProv');
+            if (prev) prev.classList.add('hidden');
+            const bots = document.getElementById('ticketBotonesProv');
+            if (bots) bots.classList.remove('hidden');
+            const nom = document.getElementById('ticketNombreProv');
+            if (nom) nom.textContent = '';
+            const inp = document.getElementById('inputTicketArchivoProv');
+            if (inp) inp.value = '';
+            // Ocultar bloque si no hay id vinculado
+            if (!window._ticketProvIdCompra) {
+                const bloque = document.getElementById('bloqueTicketProv');
+                if (bloque) bloque.style.display = 'none';
+            }
         };
 
         window.abrirCamaraTicketProv = function() {
@@ -7056,6 +7030,134 @@ function selGeneroIngEgr(val){
             const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
             cerrarCamaraTicketProv();
             mostrarPreviewTicketProv('image/jpeg', dataUrl, 'foto.jpg');
+        };
+
+        window._ticketProvIdCompra = null;
+        window._streamProvTicket2 = null;
+        window._ticketDataProv2 = null;
+
+        window.abrirTicketProvModal = function(idC) {
+            window._ticketProvIdCompra = idC;
+            window._ticketDataProv2 = null;
+            // Reset UI
+            document.getElementById('ticketPreviewProv2').style.display = 'none';
+            document.getElementById('ticketBotonesProv2').style.display = 'flex';
+            document.getElementById('camaraContainerProv2').style.display = 'none';
+            document.getElementById('ticketPreviewInnerProv2').innerHTML = '';
+            document.getElementById('inputTicketArchivoProv2').value = '';
+            // Si la compra ya tiene ticket, mostrarlo
+            const c = _sheetCompras.find(x => String(x.id||'').trim() === String(idC).trim());
+            if (c && c.ticket) {
+                window._ticketDataProv2 = c.ticket;
+                const inner = document.getElementById('ticketPreviewInnerProv2');
+                inner.innerHTML = `<img src="${c.ticket}" style="max-width:100%;max-height:150px;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
+                document.getElementById('ticketPreviewProv2').style.display = 'block';
+                document.getElementById('ticketBotonesProv2').style.display = 'none';
+            }
+            // Abrir modal
+            document.getElementById('modalTicketProv').style.display = 'flex';
+        };
+
+        window.cerrarModalTicketProv = function() {
+            cerrarCamaraTicketProv2();
+            document.getElementById('modalTicketProv').style.display = 'none';
+        };
+
+        window.cargarTicketArchivoProv2 = function(input) {
+            const file = input.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                window._ticketDataProv2 = ev.target.result;
+                const inner = document.getElementById('ticketPreviewInnerProv2');
+                if (file.type === 'application/pdf') {
+                    inner.innerHTML = `<iframe src="${ev.target.result}" style="width:100%;height:150px;border:none;border-radius:8px;"></iframe>`;
+                } else {
+                    inner.innerHTML = `<img src="${ev.target.result}" style="max-width:100%;max-height:150px;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
+                }
+                document.getElementById('ticketPreviewProv2').style.display = 'block';
+                document.getElementById('ticketBotonesProv2').style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        };
+
+        window.quitarTicketProv2 = function() {
+            window._ticketDataProv2 = null;
+            document.getElementById('ticketPreviewProv2').style.display = 'none';
+            document.getElementById('ticketBotonesProv2').style.display = 'flex';
+            document.getElementById('ticketPreviewInnerProv2').innerHTML = '';
+            document.getElementById('inputTicketArchivoProv2').value = '';
+        };
+
+        window.abrirCamaraTicketProv2 = function() {
+            document.getElementById('camaraContainerProv2').style.display = 'block';
+            document.getElementById('ticketBotonesProv2').style.display = 'none';
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                .then(stream => {
+                    window._streamProvTicket2 = stream;
+                    document.getElementById('camaraVideoProv2').srcObject = stream;
+                })
+                .catch(() => { mostrarToast('No se pudo acceder a la cámara'); cerrarCamaraTicketProv2(); });
+        };
+
+        window.cerrarCamaraTicketProv2 = function() {
+            if (window._streamProvTicket2) {
+                window._streamProvTicket2.getTracks().forEach(t => t.stop());
+                window._streamProvTicket2 = null;
+            }
+            document.getElementById('camaraContainerProv2').style.display = 'none';
+            document.getElementById('ticketBotonesProv2').style.display = 'flex';
+        };
+
+        window.capturarFotoTicketProv2 = function() {
+            const video = document.getElementById('camaraVideoProv2');
+            const canvas = document.getElementById('camaraCanvasProv2');
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            cerrarCamaraTicketProv2();
+            window._ticketDataProv2 = dataUrl;
+            const inner = document.getElementById('ticketPreviewInnerProv2');
+            inner.innerHTML = `<img src="${dataUrl}" style="max-width:100%;max-height:150px;object-fit:contain;border-radius:8px;display:block;margin:0 auto;">`;
+            document.getElementById('ticketPreviewProv2').style.display = 'block';
+            document.getElementById('ticketBotonesProv2').style.display = 'none';
+        };
+
+        window.guardarTicketProv2 = function() {
+            if (!window._ticketDataProv2) { mostrarToast('Primero subí o sacá una foto del ticket'); return; }
+            const idC = window._ticketProvIdCompra;
+            const c = _sheetCompras.find(x => String(x.id||'').trim() === String(idC).trim());
+            if (!c) { mostrarToast('Compra no encontrada'); return; }
+            c.ticket = window._ticketDataProv2;
+            fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, ticket:window._ticketDataProv2, _soloTicket:true }) });
+            mostrarToast('✓ Ticket guardado');
+            cerrarModalTicketProv();
+        };
+
+        // Guardar ticket cuando se captura desde modal proveedor
+        const _origMostrarPreviewTicketProv = window.mostrarPreviewTicketProv || function(){};
+        window.mostrarPreviewTicketProv = function(tipo, dataUrl, nombre) {
+            // mostrar preview
+            const inner = document.getElementById('ticketPreviewInnerProv');
+            if (!inner) return;
+            if (tipo === 'application/pdf') {
+                inner.innerHTML = `<iframe src="${dataUrl}" style="width:100%;height:120px;border:none;border-radius:6px;"></iframe>`;
+            } else {
+                inner.innerHTML = `<img src="${dataUrl}" style="max-width:100%;max-height:120px;object-fit:contain;border-radius:6px;display:block;margin:0 auto;">`;
+            }
+            document.getElementById('ticketPreviewProv').classList.remove('hidden');
+            document.getElementById('ticketBotonesProv').classList.add('hidden');
+            if (nombre) document.getElementById('ticketNombreProv').textContent = nombre;
+            window._ticketDataProv = dataUrl;
+            // Guardar en la compra si hay id vinculado
+            if (window._ticketProvIdCompra) {
+                const c = _sheetCompras.find(x => String(x.id||'').trim() === String(window._ticketProvIdCompra).trim());
+                if (c) {
+                    c.ticket = dataUrl;
+                    fetchSheets({ method:'POST', body: JSON.stringify({ tipo:'compra', id:c.id, ticket:dataUrl, _soloTicket:true }) });
+                    mostrarToast('✓ Ticket guardado');
+                }
+                window._ticketProvIdCompra = null;
+            }
         };
 
         window.abrirNuevaCompraDesdeProveedor = function() {
@@ -10338,10 +10440,9 @@ window.verDetalleProveedor = function(tipo, id) {
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
                     <span style="font-size:9px;font-weight:900;color:#10b981;text-transform:uppercase;">${Utils.escHtml(fecha||'')}</span>
                     <div style="display:flex;align-items:center;gap:6px;">
-                        ${ticket
-                            ? `<button onclick="verTicketCompraById('${idPago}')" style="padding:3px 7px;background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:6px;cursor:pointer;font-size:12px;line-height:1;" title="Ver ticket">🧾</button>`
-                            : `<label for="inputTicketCamara" onclick="window._ticketCompraActual=_sheetCompras.find(x=>String(x.id||'').trim()==='${idPago}')" style="padding:3px 7px;background:#1e293b;color:#475569;border:1px dashed #475569;border-radius:6px;cursor:pointer;font-size:12px;line-height:1;display:inline-block;" title="Subir ticket">📷</label>`
-                        }
+                        <button onclick="abrirTicketProvModal('${idPago}')"
+                            style="padding:3px 7px;background:#1e293b;color:${ticket?'#94a3b8':'#475569'};border:1px ${ticket?'solid #334155':'dashed #475569'};border-radius:6px;cursor:pointer;font-size:12px;line-height:1;"
+                            title="${ticket?'Ver ticket':'Subir ticket'}">${ticket?'🧾':'📷'}</button>
                         <span style="font-size:13px;font-weight:900;color:#f87171;font-family:monospace;">$${Utils.fmt(saldoTotal)}</span>
                     </div>
                 </div>
@@ -13500,6 +13601,46 @@ document.addEventListener('DOMContentLoaded', function () {
     </script>
 
     <!-- MODAL VER TICKET COMPRA -->
+    <!-- MODAL TICKET PROVEEDOR -->
+    <div id="modalTicketProv" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:rgba(0,0,0,0.85);align-items:center;justify-content:center;padding:16px;">
+        <div style="background:#0f172a;border:1px solid #334155;border-radius:20px;padding:20px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <span style="font-size:12px;font-weight:900;color:#10b981;text-transform:uppercase;letter-spacing:.08em;">🧾 Ticket / Factura</span>
+                <button onclick="cerrarModalTicketProv()" style="background:#334155;border:none;color:#fff;border-radius:8px;padding:5px 12px;font-weight:900;font-size:13px;cursor:pointer;">✕</button>
+            </div>
+            <!-- Preview -->
+            <div id="ticketPreviewProv2" style="display:none;position:relative;margin-bottom:12px;">
+                <div id="ticketPreviewInnerProv2" style="width:100%;border-radius:10px;overflow:hidden;background:#020617;min-height:100px;display:flex;align-items:center;justify-content:center;"></div>
+                <button onclick="quitarTicketProv2()" style="position:absolute;top:6px;right:6px;background:#7f1d1d;color:#fca5a5;border:1px solid #991b1b;border-radius:50%;width:24px;height:24px;font-size:11px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+            </div>
+            <!-- Botones subir/cámara -->
+            <div id="ticketBotonesProv2" style="display:flex;gap:8px;margin-bottom:12px;">
+                <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;background:#1e293b;border:1px solid #334155;border-radius:10px;cursor:pointer;font-size:10px;font-weight:900;color:#cbd5e1;text-transform:uppercase;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Subir
+                    <input type="file" id="inputTicketArchivoProv2" accept="image/*,.pdf" style="display:none;" onchange="cargarTicketArchivoProv2(this)">
+                </label>
+                <button onclick="abrirCamaraTicketProv2()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;background:#1e293b;border:1px solid #334155;border-radius:10px;cursor:pointer;font-size:10px;font-weight:900;color:#cbd5e1;text-transform:uppercase;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    Cámara
+                </button>
+            </div>
+            <!-- Cámara live -->
+            <div id="camaraContainerProv2" style="display:none;margin-bottom:12px;">
+                <video id="camaraVideoProv2" autoplay playsinline style="width:100%;border-radius:10px;max-height:200px;object-fit:cover;background:#000;display:block;"></video>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                    <button onclick="capturarFotoTicketProv2()" style="flex:1;padding:10px;background:#059669;color:#000;font-weight:900;font-size:10px;text-transform:uppercase;border:none;border-radius:10px;cursor:pointer;">📸 Capturar</button>
+                    <button onclick="cerrarCamaraTicketProv2()" style="flex:1;padding:10px;background:#334155;color:#cbd5e1;font-weight:900;font-size:10px;text-transform:uppercase;border:none;border-radius:10px;cursor:pointer;">✕ Cerrar</button>
+                </div>
+                <canvas id="camaraCanvasProv2" style="display:none;"></canvas>
+            </div>
+            <!-- Botón guardar -->
+            <button onclick="guardarTicketProv2()" style="width:100%;padding:12px;background:#059669;color:#000;font-weight:900;font-size:12px;text-transform:uppercase;border:none;border-radius:12px;cursor:pointer;letter-spacing:.05em;">
+                💾 Guardar Ticket
+            </button>
+        </div>
+    </div>
+
     <input type="file" id="inputTicketCamara" accept="image/*" capture="environment" style="position:fixed;top:-200px;left:-200px;width:1px;height:1px;" onchange="window._onTicketCapturado(this)">
     <div id="modalTicketViewer" class="hidden fixed inset-0 z-50 items-center justify-center p-4" style="background:rgba(0,0,0,0.85);display:none;">
         <div class="glass-card w-full max-w-2xl rounded-2xl border border-slate-700 overflow-hidden flex flex-col" style="max-height:90vh;">
