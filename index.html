@@ -6231,10 +6231,9 @@ clienteDetalleId = null;
 
             return {
                 fecha: fmtFecha24(v.fechaISO || v.fecha || ''),
-                producto: (v.items || [])
-                    .map(i => i.nombre)
-                    .filter(Boolean)
-                    .join(', ') || 'Sin detalle',
+                items: (v.items || []).filter(i => i.nombre) .length > 0
+                    ? v.items.filter(i => i.nombre)
+                    : [{ nombre: v.producto || 'Sin detalle', cantidad: 1 }],
                 deuda: restante
             };
 
@@ -6266,38 +6265,52 @@ clienteDetalleId = null;
     doc.text('COMPRAS CON SALDO PENDIENTE', 10, y);
     y += 10;
 
-    // ───────── LISTADO AZUL PROFESIONAL ─────────
-    ventasPendientes.forEach((v, i) => {
+    // ───────── LISTADO — UN PRODUCTO POR FILA, CADA UNO CON SU PRECIO Y DEBE ─────────
+    // Encabezado de columnas
+    doc.setFillColor(8, 15, 35);
+    doc.rect(10, y-2, W-20, 8, 'F');
+    doc.setTextColor(100,116,139); doc.setFontSize(6.5); doc.setFont('helvetica','bold');
+    doc.text('FECHA',     15,   y+3.5);
+    doc.text('PRODUCTO',  48,   y+3.5);
+    doc.text('PRECIO',    W-48, y+3.5, {align:'right'});
+    doc.text('DEBE',      W-14, y+3.5, {align:'right'});
+    y += 9;
 
-        if (y > 270) {
-            doc.addPage();
-            y = 15;
-        }
+    let rowIdx = 0;
+    ventasPendientes.forEach((v) => {
+        v.items.forEach((item, iIdx) => {
+            if (y > 270) { doc.addPage(); y = 15; }
 
-        doc.setFillColor(i%2===0 ? 10 : 18, i%2===0 ? 25 : 35, i%2===0 ? 55 : 70);
-        doc.roundedRect(10, y-3, W-20, 10, 2, 2, 'F');
+            const filH = 9;
+            doc.setFillColor(rowIdx%2===0 ? 10 : 18, rowIdx%2===0 ? 25 : 35, rowIdx%2===0 ? 55 : 70);
+            doc.rect(10, y-1, W-20, filH, 'F');
 
-        doc.setTextColor(147,197,253);
-        doc.setFontSize(7);
-        doc.setFont('helvetica','bold');
-        doc.text(v.fecha, 15, y+1);
+            // Fecha en cada fila
+            doc.setTextColor(147,197,253); doc.setFontSize(6.5); doc.setFont('helvetica','bold');
+            doc.text(v.fecha, 15, y+5.5);
 
-        doc.setTextColor(226,232,240);
-        doc.setFontSize(8);
-        doc.setFont('helvetica','normal');
+            // Nombre del producto
+            doc.setTextColor(226,232,240); doc.setFontSize(7); doc.setFont('helvetica','normal');
+            const nomProd = String(item.nombre||'-');
+            doc.text(nomProd.length > 38 ? nomProd.substring(0,37)+'…' : nomProd, 48, y+5.5);
 
-        const nombre = v.producto.length > 55
-            ? v.producto.substring(0,52)+'...'
-            : v.producto;
+            // Precio del item
+            const precioItem = (parseFloat(item.precio)||0) * (parseFloat(item.cantidad)||1);
+            doc.setTextColor(255,255,255); doc.setFontSize(7);
+            doc.text('$'+Utils.fmt(precioItem), W-48, y+5.5, {align:'right'});
 
-        doc.text(nombre, 15, y+6);
+            // DEBE = precio del item (cada producto tiene su propio debe)
+            doc.setTextColor(59,130,246); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+            doc.text('$'+Utils.fmt(precioItem), W-14, y+5.5, {align:'right'});
 
-        doc.setTextColor(59,130,246);
-        doc.setFontSize(9);
-        doc.setFont('helvetica','bold');
-        doc.text('$'+Utils.fmt(v.deuda), W-15, y+4, {align:'right'});
+            y += filH;
+            rowIdx++;
+        });
 
-        y += 12;
+        // Línea separadora entre ventas
+        doc.setDrawColor(30,41,59); doc.setLineWidth(0.2);
+        doc.line(10, y, W-10, y);
+        y += 2;
     });
 
     // ───────── FOOTER ─────────
@@ -6448,22 +6461,46 @@ clienteDetalleId = null;
                 doc.setTextColor(100,116,139); doc.setFontSize(8); doc.setFont('helvetica','italic');
                 doc.text('Sin compras pendientes', 10, y+5); y += 12;
             } else {
-                tablaHdr([{txt:'FECHA',x:13},{txt:'PRODUCTOS',x:45},{txt:'TOTAL',x:W-50},{txt:'DEBE',x:W-22}]);
-                ventasDeuda.forEach((v, idx) => {
-                    if (y > 260) { doc.addPage(); y = 15; }
-                    doc.setFillColor(idx%2===0?10:15, idx%2===0?16:23, idx%2===0?30:42);
-                    doc.rect(10, y-1, W-20, 10, 'F');
-                    doc.setTextColor(148,163,184); doc.setFontSize(7); doc.setFont('helvetica','normal');
-                    doc.text(v.fecha||'-', 13, y+5);
-                    const items = (v.items||[]).map(i=>i.nombre).join(', ')||'-';
-                    doc.text(items.length>38?items.substring(0,37)+'…':items, 45, y+5);
-                    doc.setTextColor(255,255,255);
-                    doc.text('$'+Utils.fmt(v.total), W-50, y+5);
-                    const idV = String(v.idVenta||v.IDVENTAS||v.id||'').trim();
-                    const pagV = (_pagoVentasSheet||[]).filter(p=>idV&&String(p.idVenta||'').trim()===idV).reduce((a,p)=>a+parseFloat(p.monto||0),0);
-                    doc.setTextColor(248,113,113); doc.setFont('helvetica','bold');
-                    doc.text('$'+Utils.fmt(Math.max(0,(parseFloat(v.deuda)||0)-pagV)), W-22, y+5);
-                    y += 10;
+                tablaHdr([{txt:'FECHA',x:13},{txt:'PRODUCTO',x:50},{txt:'PRECIO',x:W-42,opts:{align:'right'}},{txt:'DEBE',x:W-14,opts:{align:'right'}}]);
+                let rowIdx = 0;
+                ventasDeuda.forEach((v) => {
+                    const listaItems = (v.items && v.items.length > 0)
+                        ? v.items
+                        : [{ nombre: v.producto||'-', cantidad: 1, precio: v.total }];
+                    const filH = 9;
+
+                    listaItems.forEach((item, iIdx) => {
+                        if (y > 265) { doc.addPage(); y = 15; }
+
+                        doc.setFillColor(rowIdx%2===0?10:15, rowIdx%2===0?16:23, rowIdx%2===0?30:42);
+                        doc.rect(10, y-1, W-20, filH, 'F');
+
+                        // FECHA en cada fila
+                        doc.setTextColor(148,163,184); doc.setFontSize(6.5); doc.setFont('helvetica','normal');
+                        doc.text(v.fecha||'-', 13, y+5.5);
+
+                        // NOMBRE del producto
+                        doc.setTextColor(226,232,240); doc.setFontSize(7); doc.setFont('helvetica','normal');
+                        const nomProd = String(item.nombre||'-');
+                        doc.text(nomProd.length > 36 ? nomProd.substring(0,35)+'…' : nomProd, 50, y+5.5);
+
+                        // PRECIO del item (precio unitario × cantidad)
+                        const precioItem = (parseFloat(item.precio)||0) * (parseFloat(item.cantidad)||1);
+                        doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','normal');
+                        doc.text('$'+Utils.fmt(precioItem), W-42, y+5.5, {align:'right'});
+
+                        // DEBE = precio del item (cada producto es independiente)
+                        doc.setTextColor(248,113,113); doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
+                        doc.text('$'+Utils.fmt(precioItem), W-14, y+5.5, {align:'right'});
+
+                        y += filH;
+                        rowIdx++;
+                    });
+
+                    // Línea separadora entre ventas
+                    doc.setDrawColor(30,41,59); doc.setLineWidth(0.2);
+                    doc.line(10, y, W-10, y);
+                    y += 2;
                 });
             }
             y += 5;
@@ -10355,61 +10392,86 @@ function calcularCajaEsperada() {
                 const comprasProv = _sheetCompras.filter(c => (c.proveedor||'').toUpperCase() === nombre.toUpperCase());
                 const cantCompras = comprasProv.length;
 
-                // Deuda real al proveedor (crédito pendiente menos pagos ya realizados)
-                const totalCredito = comprasProv.reduce((s, c) => s + (Number(c.credito) || 0), 0);
-                const totalPagadoProv = (_sheetPagoCompras||[])
+                // ── 1. DEUDA REAL AL PROVEEDOR (compras con crédito - pagos ya realizados) ──
+                const totalCreditoProv = comprasProv.reduce((s, c) => s + (Number(c.credito) || 0), 0);
+                const totalPagadoProv  = (_sheetPagoCompras||[])
                     .filter(pg => (pg.proveedor||'').toUpperCase() === nombre.toUpperCase())
                     .reduce((s, pg) => s + (Number(pg.monto) || 0), 0);
-                const deudaProv = Math.max(0, totalCredito - totalPagadoProv);
+                const deudaProv = Math.max(0, totalCreditoProv - totalPagadoProv);
 
-                // Valor del stock de productos de este proveedor (stockActual × costo)
+                // ── 2. VALOR DEL STOCK DEL PROVEEDOR (stockCalculado × costo por producto) ──
+                // stockCalculado ya incorpora: stockInicio + compras - ventas (calculado en recalcularStock)
                 const valorStock = (_sheetProductos||[])
                     .filter(prod => (prod.proveedor||'').toUpperCase() === nombre.toUpperCase())
                     .reduce((s, prod) => {
-                        const stock = prod.stockCalculado ?? parseFloat(prod.stock) ?? 0;
-                        const costo = parseFloat(prod.costo) || 0;
-                        return s + (stock * costo);
+                        const stockAct = prod.stockCalculado ?? parseFloat(prod.stock) ?? 0;
+                        const costo    = parseFloat(prod.costo) || 0;
+                        return s + Math.max(0, stockAct) * costo;
                     }, 0);
 
-                // Lo que deben clientes por ventas fiadas de productos de este proveedor
+                // ── 3. DEUDA DE CLIENTES: ventas FIADAS con saldo pendiente
+                //       donde algún item pertenece a este proveedor.
+                //       Se descuentan los pagos parciales de _pagoVentasSheet.
+                //       La deuda se atribuye PROPORCIONAL al valor de los items del proveedor
+                //       dentro de esa venta.
                 const todasVentas = [
                     ...(typeof historial !== 'undefined' ? historial : []),
-                    ...(_sheetVentas||[]).filter(v => !(typeof historial !== 'undefined' ? historial : []).some(h => h.id === v.id))
+                    ...(_sheetVentas||[]).filter(v =>
+                        !(typeof historial !== 'undefined' ? historial : []).some(h => h.id === v.id))
                 ];
                 let deudaClientesProv = 0;
                 todasVentas.forEach(v => {
-                    const deudaVenta = parseFloat(v.deuda || 0);
-                    if (deudaVenta <= 0) return;
+                    const deudaBruta = parseFloat(v.deuda || 0);
+                    if (deudaBruta <= 0) return;
+                    // Descontar pagos parciales ya registrados para esta venta
+                    const idV = String(v.idVenta || v.IDVENTAS || v.id || '').trim();
+                    const pagadoV = idV
+                        ? (_pagoVentasSheet||[])
+                            .filter(p => String(p.idVenta||p.IDVENTAS||'').trim() === idV)
+                            .reduce((s, p) => s + (parseFloat(p.monto||p.MONTO)||0), 0)
+                        : 0;
+                    const saldoPendiente = Math.max(0, deudaBruta - pagadoV);
+                    if (saldoPendiente <= 0) return;
+                    // Calcular proporción del valor de items de este proveedor sobre el total de la venta
                     const items = v.items || [];
-                    if (items.length === 0) return;
                     const totalVenta = parseFloat(v.total) || 0;
-                    if (totalVenta <= 0) return;
-                    const totalItemsProv = items
+                    if (items.length === 0 || totalVenta <= 0) return;
+                    const valorItemsProv = items
                         .filter(i => (i.proveedor||'').toUpperCase() === nombre.toUpperCase())
-                        .reduce((s, i) => s + ((parseFloat(i.precio)||0) * (parseFloat(i.cantidad)||1)), 0);
-                    if (totalItemsProv > 0) {
-                        deudaClientesProv += deudaVenta * (totalItemsProv / totalVenta);
+                        .reduce((s, i) => {
+                            const precio = parseFloat(i.precio) || 0;
+                            const cant   = parseFloat(i.cantidad) || 1;
+                            return s + precio * cant;
+                        }, 0);
+                    if (valorItemsProv > 0) {
+                        const proporcion = valorItemsProv / totalVenta;
+                        deudaClientesProv += saldoPendiente * proporcion;
                     }
                 });
 
-                // Balance neto: deuda al proveedor - valor stock - lo que me deben clientes
-                const balanceNeto = deudaProv - valorStock - deudaClientesProv;
+                // ── BALANCE NETO: lo que tengo que pagar en efectivo al proveedor ──
+                // deuda al proveedor  - valor stock del proveedor  - lo que me deben clientes
+                const balanceNeto  = deudaProv - valorStock - deudaClientesProv;
                 const balanceColor = balanceNeto > 0 ? '#f87171' : '#34d399';
-                const balanceLabel = balanceNeto > 0 ? '⚠️ Neto a pagar' : '✓ Neto a favor';
-                const balanceHtml = `
-                    <div style="margin-top:8px;padding:7px 10px;background:#0f172a;border:1px solid #334155;border-radius:10px;display:flex;flex-direction:column;gap:3px;">
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                            <span style="font-size:8.5px;color:#64748b;font-weight:900;text-transform:uppercase;letter-spacing:.04em;">📦 Stock proveedor</span>
-                            <span style="font-size:9px;color:#94a3b8;font-weight:900;">- $${Utils.fmt(valorStock)}</span>
+                const balanceLabel = balanceNeto > 0 ? '⚠️ Efectivo a pagar' : '✓ Sin deuda efectiva';
+                const balanceHtml  = `
+                    <div style="margin-top:8px;padding:8px 10px;background:#0f172a;border:1px solid #1e293b;border-radius:10px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                            <span style="font-size:8px;color:#475569;font-weight:900;text-transform:uppercase;letter-spacing:.05em;">Deuda al proveedor</span>
+                            <span style="font-size:9px;color:#f87171;font-weight:900;">$${Utils.fmt(deudaProv)}</span>
                         </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                            <span style="font-size:8.5px;color:#64748b;font-weight:900;text-transform:uppercase;letter-spacing:.04em;">👥 Deben clientes</span>
-                            <span style="font-size:9px;color:#94a3b8;font-weight:900;">- $${Utils.fmt(deudaClientesProv)}</span>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                            <span style="font-size:8px;color:#475569;font-weight:900;text-transform:uppercase;letter-spacing:.05em;">— Stock del proveedor</span>
+                            <span style="font-size:9px;color:#94a3b8;font-weight:900;">$${Utils.fmt(valorStock)}</span>
                         </div>
-                        <div style="height:1px;background:#1e293b;margin:2px 0;"></div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                            <span style="font-size:8.5px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:${balanceColor};">${balanceLabel}</span>
-                            <span style="font-size:11px;font-weight:900;color:${balanceColor};">$${Utils.fmt(Math.abs(balanceNeto))}</span>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                            <span style="font-size:8px;color:#475569;font-weight:900;text-transform:uppercase;letter-spacing:.05em;">— Clientes deben (fiado)</span>
+                            <span style="font-size:9px;color:#94a3b8;font-weight:900;">$${Utils.fmt(deudaClientesProv)}</span>
+                        </div>
+                        <div style="height:1px;background:#1e293b;margin-bottom:5px;"></div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <span style="font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:${balanceColor};">${balanceLabel}</span>
+                            <span style="font-size:13px;font-weight:900;color:${balanceColor};">$${Utils.fmt(Math.abs(balanceNeto))}</span>
                         </div>
                     </div>`;
 
