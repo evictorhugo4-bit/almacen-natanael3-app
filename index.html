@@ -10354,7 +10354,65 @@ function calcularCajaEsperada() {
                 const inicial = nombre.charAt(0).toUpperCase() || '?';
                 const comprasProv = _sheetCompras.filter(c => (c.proveedor||'').toUpperCase() === nombre.toUpperCase());
                 const cantCompras = comprasProv.length;
-                const deudaProv = comprasProv.reduce((s, c) => s + (Number(c.credito) || 0), 0);
+
+                // Deuda real al proveedor (crédito pendiente menos pagos ya realizados)
+                const totalCredito = comprasProv.reduce((s, c) => s + (Number(c.credito) || 0), 0);
+                const totalPagadoProv = (_sheetPagoCompras||[])
+                    .filter(pg => (pg.proveedor||'').toUpperCase() === nombre.toUpperCase())
+                    .reduce((s, pg) => s + (Number(pg.monto) || 0), 0);
+                const deudaProv = Math.max(0, totalCredito - totalPagadoProv);
+
+                // Valor del stock de productos de este proveedor (stockActual × costo)
+                const valorStock = (_sheetProductos||[])
+                    .filter(prod => (prod.proveedor||'').toUpperCase() === nombre.toUpperCase())
+                    .reduce((s, prod) => {
+                        const stock = prod.stockCalculado ?? parseFloat(prod.stock) ?? 0;
+                        const costo = parseFloat(prod.costo) || 0;
+                        return s + (stock * costo);
+                    }, 0);
+
+                // Lo que deben clientes por ventas fiadas de productos de este proveedor
+                const todasVentas = [
+                    ...(typeof historial !== 'undefined' ? historial : []),
+                    ...(_sheetVentas||[]).filter(v => !(typeof historial !== 'undefined' ? historial : []).some(h => h.id === v.id))
+                ];
+                let deudaClientesProv = 0;
+                todasVentas.forEach(v => {
+                    const deudaVenta = parseFloat(v.deuda || 0);
+                    if (deudaVenta <= 0) return;
+                    const items = v.items || [];
+                    if (items.length === 0) return;
+                    const totalVenta = parseFloat(v.total) || 0;
+                    if (totalVenta <= 0) return;
+                    const totalItemsProv = items
+                        .filter(i => (i.proveedor||'').toUpperCase() === nombre.toUpperCase())
+                        .reduce((s, i) => s + ((parseFloat(i.precio)||0) * (parseFloat(i.cantidad)||1)), 0);
+                    if (totalItemsProv > 0) {
+                        deudaClientesProv += deudaVenta * (totalItemsProv / totalVenta);
+                    }
+                });
+
+                // Balance neto: deuda al proveedor - valor stock - lo que me deben clientes
+                const balanceNeto = deudaProv - valorStock - deudaClientesProv;
+                const balanceColor = balanceNeto > 0 ? '#f87171' : '#34d399';
+                const balanceLabel = balanceNeto > 0 ? '⚠️ Neto a pagar' : '✓ Neto a favor';
+                const balanceHtml = `
+                    <div style="margin-top:8px;padding:7px 10px;background:#0f172a;border:1px solid #334155;border-radius:10px;display:flex;flex-direction:column;gap:3px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                            <span style="font-size:8.5px;color:#64748b;font-weight:900;text-transform:uppercase;letter-spacing:.04em;">📦 Stock proveedor</span>
+                            <span style="font-size:9px;color:#94a3b8;font-weight:900;">- $${Utils.fmt(valorStock)}</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                            <span style="font-size:8.5px;color:#64748b;font-weight:900;text-transform:uppercase;letter-spacing:.04em;">👥 Deben clientes</span>
+                            <span style="font-size:9px;color:#94a3b8;font-weight:900;">- $${Utils.fmt(deudaClientesProv)}</span>
+                        </div>
+                        <div style="height:1px;background:#1e293b;margin:2px 0;"></div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                            <span style="font-size:8.5px;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:${balanceColor};">${balanceLabel}</span>
+                            <span style="font-size:11px;font-weight:900;color:${balanceColor};">$${Utils.fmt(Math.abs(balanceNeto))}</span>
+                        </div>
+                    </div>`;
+
                 const estadoHtml = deudaProv > 0
                     ? `<div style="text-align:right;"><span style="color:#f87171;font-size:10px;font-weight:900;">Debe: $${Utils.fmt(deudaProv)}</span><div style="color:#64748b;font-size:9px;">${cantCompras} compras</div></div>`
                     : `<div style="text-align:right;"><span style="color:#10b981;font-size:10px;font-weight:900;">Al día ✓</span><div style="color:#64748b;font-size:9px;">${cantCompras} compras</div></div>`;
@@ -10379,6 +10437,7 @@ function calcularCajaEsperada() {
                             <button onclick="pedirEliminarProveedor('negocio','${p.id}')" style="padding:5px 8px;background:#7f1d1d;color:#fca5a5;border:none;border-radius:7px;cursor:pointer;font-size:13px;" title="Eliminar">🗑️</button>
                         </div>
                     </div>
+                    ${balanceHtml}
                 </div>`;
             }).join('');
         }
