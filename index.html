@@ -5839,6 +5839,8 @@ return;
             const _pagoVistosSet = new Set();
             // PRÉSTAMOS: vienen de INGRESOS NEGOCIO (campo credito), pagos de _sheetPagoIngNeg (campo MONTO)
             const ingresosNegTodos = typeof _sheetIngresosNegocio !== 'undefined' ? _sheetIngresosNegocio : [];
+            console.log('[ING DBG] total ingresosNeg:', ingresosNegTodos.length, '| idCl:', idCl, '| nomCl:', nomCl);
+            if (ingresosNegTodos.length > 0) console.log('[ING DBG] primer ingreso:', JSON.stringify(ingresosNegTodos[0]));
             const _ingNegVistos = new Set();
             const ingresosNegCliente = ingresosNegTodos.filter(e => {
                 const eIdCl = String(e.idCliente || '').trim();
@@ -5852,6 +5854,7 @@ return;
             });
 
             const totalCredito = ingresosNegCliente.reduce((s,e) => s + (parseFloat(e.credito)||0), 0);
+            console.log('[ING DBG] ingresosNegCliente count:', ingresosNegCliente.length, '| totalCredito:', totalCredito);
             const totalPagado  = (_sheetPagoIngNeg||[])
                 .filter(p => {
                     // match por idCliente si existe, sino por IDINGRESOSNEGOCIO que pertenezca al cliente
@@ -12220,6 +12223,15 @@ if (indicator) indicator.classList.remove('hidden');
                 // Proveedores
                 syncProveedoresDesdeSheet(data.proveedoresNegocio, 'negocio');
                 syncProveedoresDesdeSheet(data.proveedoresGastos, 'gastos');
+                // Refrescar modal de cliente si está abierto (los préstamos llegan en esta etapa)
+                console.log('[REFRESH] clienteDetalleId:', clienteDetalleId, '| _sheetIngresosNegocio.length:', _sheetIngresosNegocio.length);
+                if (typeof clienteDetalleId !== 'undefined' && clienteDetalleId) {
+                    const _modalAbierto = document.getElementById('modalDetalleCliente');
+                    console.log('[REFRESH] modal-active:', _modalAbierto && _modalAbierto.classList.contains('modal-active'));
+                    if (_modalAbierto && _modalAbierto.classList.contains('modal-active')) {
+                        abrirDetalleCliente(clienteDetalleId);
+                    }
+                }
                 console.log('✓ Datos secundarios procesados');
             } catch(e) {
                 console.error('Error procesando datos secundarios:', e);
