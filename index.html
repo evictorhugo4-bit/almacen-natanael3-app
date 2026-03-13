@@ -10079,14 +10079,12 @@ const idCliente = cli ? (cli.id || cli.idSheet || '') : '';
 
     r.credito = Math.max(0, r.total - r.efectivo);
 
+    // Solo actualizar proveedor y concepto — NO sobreescribir montos
     editarEnSheet({
         tipo: ingEgrTipo === 'ingreso' ? 'actualizar_ingreso' : 'actualizar_egreso',
         id: r.id,
         proveedor: r.proveedor,
-        concepto: r.concepto,
-        efectivo: r.efectivo,
-        credito: r.credito,
-        total: r.total
+        concepto: r.concepto
     });
 
     renderIngEgr(ingEgrTipo);
