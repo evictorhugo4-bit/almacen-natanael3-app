@@ -8756,17 +8756,17 @@ container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
                     subirTicketImgBB(ticketFinal, function(url) {
                         console.log('[TICKET DBG] → ImgBB url:', url ? url.substring(0,60) : url);
                         compra.ticket = url || ticketFinal;
-                        const payloadFinal = { tipo: 'actualizar_compra', idCompra: _idParaSheet, proveedor: prov, ticket: compra.ticket };
+                        const payloadFinal = { tipo: 'actualizar_compra', idCompra: _idParaSheet, fecha: compra.fechaISO || compra.fecha || '', proveedor: prov, ticket: compra.ticket };
                         console.log('[TICKET DBG] → payload a enviar:', JSON.stringify(payloadFinal).substring(0,200));
                         editarEnSheet(payloadFinal);
                     });
                 } else {
                     console.log('[TICKET DBG] → ticket ya es URL, enviando directo');
-                    editarEnSheet({ tipo: 'actualizar_compra', idCompra: _idParaSheet, proveedor: prov, ticket: ticketFinal });
+                    editarEnSheet({ tipo: 'actualizar_compra', idCompra: _idParaSheet, fecha: compra.fechaISO || compra.fecha || '', proveedor: prov, ticket: ticketFinal });
                 }
             } else {
                 console.log('[TICKET DBG] → ticketFinal vacío, enviando SIN ticket');
-                editarEnSheet({ tipo: 'actualizar_compra', idCompra: _idParaSheet, proveedor: prov });
+                editarEnSheet({ tipo: 'actualizar_compra', idCompra: _idParaSheet, fecha: compra.fechaISO || compra.fecha || '', proveedor: prov });
             }
 
             toggleModal('modalEditarCompra', false);
@@ -10951,6 +10951,7 @@ function verDetalleProveedor(tipo, id){
                 })
                     .then(r => r.text())
                     .then(txt => {
+                        console.log('[Sheet] POST → respuesta:', txt.substring(0, 200));
                         try {
                             const d = JSON.parse(txt);
                             if (d.ok) {
