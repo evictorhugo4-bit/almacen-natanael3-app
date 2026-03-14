@@ -4629,7 +4629,7 @@ totales.egresosNegocio = totalPrestamos - totalPagosPrestamos;
                             tipoVenta:cols[4]||'Unidad', costo:parseFloat(cols[5])||0, precio:parseFloat(cols[6])||0,
                             cantidad:parseFloat(cols[8])||null, stock:parseFloat(cols[9])||0,
                             stockSeguro:parseFloat(cols[10])||null, minimo:parseFloat(cols[11])||null,
-                            stockInicio:parseFloat(cols[12])||null, fechaInicio:cols[13]||'',
+                            stockInicio:parseFloat(cols[12])||null, fechaStockInicio:cols[13]||'', fechaInicio:cols[13]||'',
                             stockVerificado:parseFloat(cols[14])||null, fechaVerif:cols[15]||'',
                             stockCorrecto:parseFloat(cols[16])||null, fechaCantidad:cols[17]||'',
                             vencimiento:cols[18]||'', fechaVencimiento:cols[19]||''
@@ -4874,6 +4874,10 @@ function recalcularTodosLosStocks() {
     }
 
     _sheetProductos.forEach(p => {
+    // DEBUG PEPSI
+    const pPepsi = _sheetProductos.find(p => p.nombre && p.nombre.toUpperCase().includes("PEPSI") && p.nombre.toUpperCase().includes("2"));
+    if (pPepsi) console.log("[PEPSI DBG] stockInicio:", pPepsi.stockInicio, "| fechaStockInicio:", JSON.stringify(pPepsi.fechaStockInicio), "| parsedRef:", parseFechaNum(pPepsi.fechaStockInicio||""), "| stockFisico:", pPepsi.stockFisico, "| stock:", pPepsi.stock);
+
         const nombre = p.nombre.trim().toUpperCase();
 
         // ── REGLA 1: STOCK FISICO verificado manualmente ──
@@ -4888,8 +4892,8 @@ function recalcularTodosLosStocks() {
         }
 
         // ── REGLA 2: STOCK INICIAL MENSUAL ──
-        if (p.stockInicio !== null && p.fechaStockInicio) {
-            const refNum = parseFechaNum(p.fechaStockInicio);
+        if (p.stockInicio !== null && (p.fechaStockInicio || p.fechaInicio)) {
+            const refNum = parseFechaNum(p.fechaStockInicio || p.fechaInicio);
             if (refNum) {
                 mapaBase[nombre]   = parseFloat(p.stockInicio);
                 mapaRefNum[nombre] = refNum;
@@ -4935,6 +4939,18 @@ function recalcularTodosLosStocks() {
         const nombre = p.nombre.trim().toUpperCase();
         p.stockCalculado = mapaBase[nombre] ?? 0;
     });
+    // DEBUG PEPSI post-calc
+    const pPepsiPost = _sheetProductos.find(p => p.nombre && p.nombre.toUpperCase().includes('PEPSI') && p.nombre.toUpperCase().includes('2'));
+    if (pPepsiPost) {
+        const nom = pPepsiPost.nombre.trim().toUpperCase();
+        const ref = parseFechaNum(pPepsiPost.fechaStockInicio||'');
+        const todasV = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
+        let cntV=0, sumV=0;
+        todasV.forEach(v => { const fnum=parseFechaNum(v.fechaISO||v.fecha||''); (v.items||[]).forEach(it => { if(String(it.nombre||'').trim().toUpperCase()===nom){ if(!ref||!fnum||fnum>ref){cntV++;sumV+=parseFloat(it.cantidad)||0;} } }); });
+        let cntC=0, sumC=0;
+        (_sheetCompras||[]).forEach(cp => { const fnum=parseFechaNum(cp.fechaISO||cp.fecha||''); (cp.items||[]).forEach(it => { if(String(it.nombre||'').trim().toUpperCase()===nom){ if(!ref||!fnum||fnum>ref){cntC++;sumC+=parseFloat(it.cantidad)||0;} } }); });
+        console.log('[PEPSI DBG POST] stockCalculado:', pPepsiPost.stockCalculado, '| ref:', ref, '| ventas count:', cntV, 'sum:', sumV, '| compras count:', cntC, 'sum:', sumC, '| base:', mapaBase[nom]);
+    }
 }
 
 
