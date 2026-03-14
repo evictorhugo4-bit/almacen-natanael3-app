@@ -3524,8 +3524,9 @@ _sheetProductos.forEach(p => {
                 const qty = Math.max(1, Math.floor(inputVal) || 1);
                 const prod = _sheetProductos.find(p => p.id === productoPendiente.id);
                 const enCarrito = carrito.filter(c => c.id === productoPendiente.id).reduce((s, c) => s + c.cantidad, 0);
-                if (prod && prod.stock > 0 && (enCarrito + qty) > prod.stock) {
-                    mostrarToast(`Stock insuficiente. Disponible: ${prod.stock - enCarrito}`, 'error'); return;
+                const stockDisp = prod ? (prod.stockCalculado ?? parseFloat(prod.stock) ?? 0) : 0;
+                if (prod && stockDisp > 0 && (enCarrito + qty) > stockDisp) {
+                    mostrarToast(`Stock insuficiente. Disponible: ${stockDisp - enCarrito}`, 'error'); return;
                 }
                 carrito.push({ ...productoPendiente, cantidad: qty, esPeso: false, itemId: Utils.genId() });
                 cerrarSelector();
@@ -9744,6 +9745,7 @@ renderIngresos();
         // PAGO COMPRAS
         // ═══════════════════════════════════════════════════════════════════
         let _pagoCompraId  = null;
+        let _pagoCompraNombre = null;
         let _pagoCompraFP  = 'EFECTIVO';
         let _sheetPagoCompras = [];
        
@@ -9759,7 +9761,7 @@ renderIngresos();
 
     return id;
 }
-       function abrirPagoCompra(id, montoPreset) {
+       function abrirPagoCompra(id, montoPreset, nombreProducto) {
 
     console.log("CLICK PAGO COMPRA", id);
 
@@ -9777,6 +9779,7 @@ renderIngresos();
 
     _pagoCompraId = id;
     _pagoCompraFP = 'EFECTIVO';
+    _pagoCompraNombre = nombreProducto || null;
 
     const idSheet = _getIdSheetCompra(r);
 
@@ -9838,7 +9841,7 @@ _sheetPagoCompras.push({
     IDPAGOCOMPRAS:id,
     IDCOMPRAS:idSheet,
     FECHA:fechaSheet(ahora),
-    PRODUCTO:(r.items||[]).map(i=>i.nombre).join(', '),
+    PRODUCTO: _pagoCompraNombre || (r.items||[]).map(i=>i.nombre).join(', '),
     'FORMA DE PAGO':_pagoCompraFP,
     MONTO:monto,
     'FECHA ORIGINAL':r.fecha||''
@@ -9857,7 +9860,7 @@ fetchSheets({
     IDCOMPRAS:idSheet,
     fecha:fechaSheet(ahora),
     fechaISO:ahora.toISOString(),
-    producto:(r.items||[]).map(i=>i.nombre).join(', '),
+    producto: _pagoCompraNombre || (r.items||[]).map(i=>i.nombre).join(', '),
     proveedor: r.proveedor || '',
     formaPago:_pagoCompraFP,
     monto,
@@ -10653,9 +10656,9 @@ window.verDetalleCategoriaGasto = function(categoria) {
     toggleModal('modalDetalleProveedor', true);
 };
 
-window.pagarItemProv = function(esGasto, id, monto) {
+window.pagarItemProv = function(esGasto, id, monto, nombreProducto) {
     if (esGasto) abrirPagoEgreso(id, monto);
-    else abrirPagoCompra(id, monto);
+    else abrirPagoCompra(id, monto, nombreProducto);
 };
 
 window.verDetalleProveedor = function(tipo, id) {
@@ -10752,7 +10755,7 @@ window.verDetalleProveedor = function(tipo, id) {
                     <span style="font-size:9px;color:#94a3b8;">📦</span>
                     <span style="font-size:10px;color:#cbd5e1;flex:1;">${Utils.escHtml(nom)}</span>
                     ${subtotal > 0 ? `<span style="font-size:10px;color:#94a3b8;font-family:monospace;">$${Utils.fmt(subtotal)}</span>` : ''}
-                    <button onclick="pagarItemProv(${esGasto?1:0},'${itemIdC}',${subtotal})"
+                    <button onclick="pagarItemProv(${esGasto?1:0},'${itemIdC}',${subtotal},${JSON.stringify(item.nombre||'')})"
                         style="padding:3px 7px;background:#064e3b;color:#34d399;border:1px solid #065f46;border-radius:6px;cursor:pointer;font-size:11px;line-height:1;"
                         title="Registrar pago">💳</button>
                 </div>`;
@@ -12844,6 +12847,11 @@ console.log("FILTRADAS:", filtradas.length);
             // Función que replica EXACTAMENTE el cálculo del Kardex para un producto
             function calcKardexProd(prod) {
                 const nombreUp = String(prod.nombre||'').trim().toUpperCase();
+                if (nombreUp.includes('PEPSI') && nombreUp.includes('2')) console.log('[KARDEX PEPSI]', JSON.stringify({stockFisico:prod.stockFisico, fechaStockFisico:prod.fechaStockFisico, stockInicio:prod.stockInicio, fechaStockInicio:prod.fechaStockInicio, fechaInicio:prod.fechaInicio, stockVerificado:prod.stockVerificado, fechaVerif:prod.fechaVerif, stock:prod.stock}));
+                if (nombreUp.includes('PEPSI') && nombreUp.includes('2')) {
+                    // log después del cálculo de refNum — necesitamos hacerlo al final, guardamos flag
+                    prod._dbgPepsi2 = true;
+                }
 
                 // Regla 1: stockFisico verificado (prioridad)
                 let stockBase, fechaRefRaw;
@@ -12875,6 +12883,7 @@ console.log("FILTRADAS:", filtradas.length);
                 todasV.forEach(v => {
                     const fnum = parseFechaNum(v.fechaISO || v.fecha || v['FECHA'] || '');
                     if (!fnum) return;
+                    if (refNum && fnum <= refNum) return; // anterior o igual a fecha base → ignorar
                     if (fdNum && fnum < fdNum) return;
                     if (fhNum && fnum > fhNum) return;
                     (v.items||[]).forEach(it => {
@@ -12890,10 +12899,12 @@ console.log("FILTRADAS:", filtradas.length);
                 todasC.forEach(cp => {
                     const fnum = parseFechaNum(cp.fechaISO || cp.fecha);
                     if (!fnum) return;
-                    if (fdNum && fnum < fdNum) return;
+                    if (refNum && fnum <= refNum) { if(prod._dbgPepsi2) console.log('[CP SKIP refNum]', fnum, '<=', refNum, cp.fechaISO||cp.fecha); return; }
+                    if (fdNum && fnum < fdNum) { if(prod._dbgPepsi2) console.log('[CP SKIP fdNum]', fnum, '<', fdNum); return; }
                     if (fhNum && fnum > fhNum) return;
                     (cp.items||[]).forEach(it => {
                         if (String(it.nombre||'').trim().toUpperCase() !== nombreUp) return;
+                        if(prod._dbgPepsi2) console.log('[CP OK]', fnum, 'cant:', it.cantidad, cp.fechaISO||cp.fecha);
                         movimientos.push({ fechaNum: fnum, entrada: parseFloat(it.cantidad)||0, salida: 0 });
                     });
                 });
@@ -12911,6 +12922,7 @@ console.log("FILTRADAS:", filtradas.length);
                     }
                 });
 
+                if (prod._dbgPepsi2) console.log('[KARDEX PEPSI RESULT] refNum:', refNum, '| stockBase:', stockBase, '| totalCompras:', totalCompras, '| totalVentas:', totalVentas, '| saldo:', saldo, '| fdNum:', fdNum, '| fhNum:', fhNum);
                 return { stockInicial: stockBase, compras: totalCompras, ventas: totalVentas, stockActual: Math.round(saldo*100)/100 };
             }
 
