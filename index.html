@@ -11481,6 +11481,11 @@ function verDetalleProveedor(tipo, id){
                 // Primero intentar vaciar cola de pendientes
                 await _colaFlush();
                 await sincronizarSheets(true); // true = silencioso
+                // Refrescar tabla de estadísticas si está visible
+                const vistaEst = document.getElementById('vistaEstadisticas');
+                if (vistaEst && !vistaEst.classList.contains('hidden')) {
+                    renderStockProveedor();
+                }
             } catch(e) { /* silencioso */ }
         }
 
@@ -12368,8 +12373,10 @@ if (indicator) indicator.classList.remove('hidden');
 
         function renderHistorialConSheet() {
 
-    // Sheet es la única fuente de verdad
-   historial = [...(_sheetVentas || [])];
+    // Sheet es la única fuente de verdad.
+    // Las ventas locales offline se guardan en la cola de pendientes
+    // y se sincronizan automáticamente cuando vuelve la conexión.
+    historial = [...(_sheetVentas || [])];
 
     // Ordenar por fecha descendente
     historial.sort((a, b) => {
@@ -12377,6 +12384,10 @@ if (indicator) indicator.classList.remove('hidden');
         const fb = parseFechaNum(b.fechaISO || b.fecha) || 0;
         return fb - fa;
     });
+
+    // Si la tabla de stock por proveedor está visible, refrescarla con los nuevos datos
+    const _provSel = document.getElementById('filtroProveedorStat')?.value || '';
+    if (_provSel) setTimeout(() => renderStockProveedor(), 0);
 
     _renderHistorialData(historial);
 }
