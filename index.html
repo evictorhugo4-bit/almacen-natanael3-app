@@ -4877,21 +4877,8 @@ function recalcularTodosLosStocks() {
 
         const nombre = p.nombre.trim().toUpperCase();
 
-        // ── REGLA 1: STOCK FISICO verificado manualmente ──
-        // null = celda vacía en sheet; 0 = valor cero real
-        // El conteo físico ya incluye los movimientos de ese día → ignorar transacciones con fecha <= ref
-        if (p.stockFisico !== null && p.stockFisico !== undefined && p.fechaStockFisico) {
-            const refNum = parseFechaNum(p.fechaStockFisico);
-            if (refNum) {
-                mapaBase[nombre]    = parseFloat(p.stockFisico);
-                mapaRefNum[nombre]  = refNum;
-                mapaEsFisico[nombre] = true;
-                return;
-            }
-        }
-
-        // ── REGLA 2: STOCK INICIAL MENSUAL ──
-        // Es el stock al inicio del período → las compras/ventas del mismo día SÍ se cuentan (fnum < ref)
+        // ── REGLA 1: STOCK INICIAL MENSUAL ──
+        // stockFisico NO se usa aquí — el stock del inventario siempre es stockInicio + compras - ventas
         if (p.stockInicio !== null && p.stockInicio !== undefined && (p.fechaStockInicio || p.fechaInicio)) {
             const refNum = parseFechaNum(p.fechaStockInicio || p.fechaInicio);
             if (refNum) {
@@ -4919,13 +4906,7 @@ function recalcularTodosLosStocks() {
             const nombre = String(it.nombre || '').trim().toUpperCase();
             if (mapaBase[nombre] == null) return;
             const ref = mapaRefNum[nombre];
-            if (ref && fnum) {
-                // REGLA 1 (stockFisico): comparar con hora exacta
-                // REGLA 2 (stockInicio): truncar al día para ignorar offset de timezone del sheet
-                const _r = mapaEsFisico[nombre] ? ref : soloFecha(ref);
-                const _f = mapaEsFisico[nombre] ? fnum : soloFecha(fnum);
-                if (mapaEsFisico[nombre] ? _f <= _r : _f < _r) return;
-            }
+            if (ref && fnum && soloFecha(fnum) < soloFecha(ref)) return;
             mapaBase[nombre] -= parseFloat(it.cantidad) || 0;
         });
     });
@@ -4937,11 +4918,7 @@ function recalcularTodosLosStocks() {
             const nombre = String(it.nombre || '').trim().toUpperCase();
             if (mapaBase[nombre] == null) return;
             const ref = mapaRefNum[nombre];
-            if (ref && fnum) {
-                const _r = mapaEsFisico[nombre] ? ref : soloFecha(ref);
-                const _f = mapaEsFisico[nombre] ? fnum : soloFecha(fnum);
-                if (mapaEsFisico[nombre] ? _f <= _r : _f < _r) return;
-            }
+            if (ref && fnum && soloFecha(fnum) < soloFecha(ref)) return;
             mapaBase[nombre] += parseFloat(it.cantidad) || 0;
         });
     });
@@ -11400,19 +11377,26 @@ function verDetalleProveedor(tipo, id){
             mostrarToast('⏳ Sincronizando...', 'info');
             try {
                 await sincronizarSheets();
-                mostrarToast('✅ Sincronizado', 'success');
+                if (!silencioso) mostrarToast('✅ Sincronizado', 'success');
             } catch(e) {
-                mostrarToast('❌ Error al sincronizar', 'error');
+                if (!silencioso) mostrarToast('❌ Error al sincronizar', 'error');
             }
-            if (btn) { btn.textContent = '🔄'; btn.style.background = '#10b981'; btn.disabled = false; }
+            if (!silencioso && btn) { btn.textContent = '🔄'; btn.style.background = '#10b981'; btn.disabled = false; }
         };
 
         function iniciarSyncSheets() {
             const p = sincronizarSheets(); // sync inicial al cargar
-            // Sync automático cada 5 minutos (dataset grande)
+            // Sync automático cada 5 segundos en segundo plano (Etapa 1 silenciosa)
             if (_syncInterval) clearInterval(_syncInterval);
-            _syncInterval = setInterval(() => sincronizarSheets(), 300000);
-            return p; // retornar promise para que window.onload pueda hacer .then()
+            _syncInterval = setInterval(() => sincronizarSheetsSilencioso(), 5000);
+            return p;
+        }
+
+        // Sync silencioso cada 5 segundos — llama sincronizarSheets en modo silencioso
+        async function sincronizarSheetsSilencioso() {
+            try {
+                await sincronizarSheets(true); // true = silencioso
+            } catch(e) { /* silencioso */ }
         }
 
         // Todas las ventas: locales + sheet sin duplicar
@@ -11478,7 +11462,7 @@ function verDetalleProveedor(tipo, id){
             return parseFloat(str) || 0;
         }
 
-        async function sincronizarSheets() {
+        async function sincronizarSheets(silencioso = false) {
             const indicator = document.getElementById('syncIndicator');
             const _log = (msg, color='#10b981') => {
                 console.log(msg);
@@ -11492,7 +11476,7 @@ function verDetalleProveedor(tipo, id){
                     while (panel.children.length > 20) panel.removeChild(panel.lastChild);
                 }
             };
-            _log('↺ Iniciando sync en 2 etapas...', '#94a3b8');
+            if (!silencioso) _log('↺ Iniciando sync en 2 etapas...', '#94a3b8');
             let data;
             try {
                 // ── ETAPA 1: hojas críticas (inventario, ventas, compras, clientes) ──
@@ -11500,9 +11484,9 @@ function verDetalleProveedor(tipo, id){
                 try {
                     resRapido = await fetch(SHEETS_URL2 + '?modo=rapido');
                 } catch(netErr) {
-                    _log('❌ Error de red: ' + netErr.message, '#f87171');
-                    mostrarToast('❌ Sin conexión al sheet: ' + netErr.message, 'error');
-                    if (indicator) indicator.classList.add('hidden');
+                    if (!silencioso) _log('❌ Error de red: ' + netErr.message, '#f87171');
+                    if (!silencioso) mostrarToast('❌ Sin conexión al sheet: ' + netErr.message, 'error');
+                    if (!silencioso && indicator) indicator.classList.add('hidden');
                     return;
                 }
                 if (!resRapido.ok) {
