@@ -4943,13 +4943,14 @@ function recalcularTodosLosStocks() {
     const pPepsiPost = _sheetProductos.find(p => p.nombre && p.nombre.toUpperCase().includes('PEPSI') && p.nombre.toUpperCase().includes('2'));
     if (pPepsiPost) {
         const nom = pPepsiPost.nombre.trim().toUpperCase();
-        const ref = parseFechaNum(pPepsiPost.fechaStockInicio||'');
+        const ref = parseFechaNum(pPepsiPost.fechaStockInicio || pPepsiPost.fechaInicio || '');
+        console.log('[PEPSI DBG] nombre:', pPepsiPost.nombre, '| stockInicio:', pPepsiPost.stockInicio, '| fechaStockInicio:', pPepsiPost.fechaStockInicio, '| fechaInicio:', pPepsiPost.fechaInicio, '| ref:', ref);
         const todasV = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
         let cntV=0, sumV=0;
         todasV.forEach(v => { const fnum=parseFechaNum(v.fechaISO||v.fecha||''); (v.items||[]).forEach(it => { if(String(it.nombre||'').trim().toUpperCase()===nom){ if(!ref||!fnum||fnum>ref){cntV++;sumV+=parseFloat(it.cantidad)||0;} } }); });
         let cntC=0, sumC=0;
         (_sheetCompras||[]).forEach(cp => { const fnum=parseFechaNum(cp.fechaISO||cp.fecha||''); (cp.items||[]).forEach(it => { if(String(it.nombre||'').trim().toUpperCase()===nom){ if(!ref||!fnum||fnum>ref){cntC++;sumC+=parseFloat(it.cantidad)||0;} } }); });
-        console.log('[PEPSI DBG POST] stockCalculado:', pPepsiPost.stockCalculado, '| ref:', ref, '| ventas count:', cntV, 'sum:', sumV, '| compras count:', cntC, 'sum:', sumC, '| base:', mapaBase[nom]);
+        console.log('[PEPSI DBG POST] stockCalculado:', pPepsiPost.stockCalculado, '| ref:', ref, '| base:', mapaBase[nom], '| ventas count:', cntV, 'sum:', sumV, '| compras count:', cntC, 'sum:', sumC);
     }
 }
 
@@ -12843,9 +12844,24 @@ console.log("FILTRADAS:", filtradas.length);
             // Función que replica EXACTAMENTE el cálculo del Kardex para un producto
             function calcKardexProd(prod) {
                 const nombreUp = String(prod.nombre||'').trim().toUpperCase();
-                const stockBase = parseFloat(prod.stockInicio || prod.stockComienzo || 0) || 0;
-                const fechaRefRaw = prod.fechaStockInicio || prod.fechaVerif ||
-                                    prod['FECHA STOCK INICIAL MENSUAL'] || prod['FECHA STOCK FISICO'] || '';
+
+                // Regla 1: stockFisico verificado (prioridad)
+                let stockBase, fechaRefRaw;
+                if (prod.stockFisico !== null && prod.stockFisico !== undefined && prod.stockFisico !== '' && prod.fechaStockFisico) {
+                    stockBase   = parseFloat(prod.stockFisico);
+                    fechaRefRaw = prod.fechaStockFisico;
+                }
+                // Regla 2: stockInicio mensual
+                else if (prod.stockInicio !== null && prod.stockInicio !== undefined && (prod.fechaStockInicio || prod.fechaInicio)) {
+                    stockBase   = parseFloat(prod.stockInicio) || 0;
+                    fechaRefRaw = prod.fechaStockInicio || prod.fechaInicio || '';
+                }
+                // Regla 3: fallback stock actual
+                else {
+                    stockBase   = parseFloat(prod.stock) || 0;
+                    fechaRefRaw = '';
+                }
+
                 const refNum = parseFechaNum(fechaRefRaw);
 
                 const movimientos = [];
