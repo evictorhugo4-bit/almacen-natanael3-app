@@ -10750,7 +10750,7 @@ window.verDetalleProveedor = function(tipo, id) {
             : (idC ? pagosComp.filter(p => String(p.idCompra||p.IDCOMPRAS||'').trim() === idC) : [])
                        .reduce((s,p)=> s+(Number(p.MONTO||p.monto)||0), 0);
         const montoBruto = (Number(c.credito)||0) || (Number(c.total)||0);
-        const saldo = Math.max(0, montoBruto - pagadoEsta);
+        const saldo = Math.round(Math.max(0, montoBruto - pagadoEsta) * 100) / 100;
         if (saldo <= 0) return;
         const idBase = String(c.fechaISO || c.fecha || '').trim();
         if (!gruposCompra.has(idBase)) {
