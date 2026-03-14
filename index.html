@@ -4978,6 +4978,25 @@ function recalcularTodosLosStocks() {
 
     // DEBUG AVENA
     const pAvena = _sheetProductos.find(p => p.nombre && p.nombre.toUpperCase().includes('AVENA') && p.nombre.toUpperCase().includes('X300'));
+    // Mostrar todos los nombres de items en compras que contengan AVENA
+    console.log('=== AVENA EN COMPRAS (raw) ===');
+    (_sheetCompras||[]).forEach(cp => {
+        (cp.items||[]).forEach(it => {
+            if (String(it.nombre||'').toUpperCase().includes('AVENA')) {
+                console.log('  [COMPRA] nombre raw:', JSON.stringify(it.nombre), '| fecha:', cp.fechaISO||cp.fecha);
+            }
+        });
+    });
+    const todasVdbg = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
+    console.log('=== AVENA EN VENTAS (raw) ===');
+    todasVdbg.forEach(v => {
+        (v.items||[]).forEach(it => {
+            if (String(it.nombre||'').toUpperCase().includes('AVENA')) {
+                console.log('  [VENTA] nombre raw:', JSON.stringify(it.nombre), '| fecha:', v.fechaISO||v.fecha);
+            }
+        });
+    });
+    if (pAvena) console.log('  [PRODUCTO] nombre raw:', JSON.stringify(pAvena.nombre), '| trim.upper:', JSON.stringify(pAvena.nombre.trim().toUpperCase()));
     if (pAvena) {
         const nom = pAvena.nombre.trim().toUpperCase();
         const ref = mapaRefNum[nom];
