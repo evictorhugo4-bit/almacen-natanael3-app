@@ -4858,8 +4858,15 @@ function poblarSelectsInv() {
        
 
 function recalcularTodosLosStocks() {
-    const mapaBase   = {};
-    const mapaRefNum = {};
+    const mapaBase    = {};
+    const mapaRefNum  = {};
+    const mapaEsFisico = {}; // true = base viene de stockFisico (REGLA 1), false = stockInicio (REGLA 2)
+
+    // Trunca un número de fecha YYYYMMDDHHmmss al día: YYYYMMDD000000
+    // Usado para comparar REGLA 2 (stockInicio mensual) solo por fecha, sin importar la hora
+    // Esto evita que un offset de timezone en el sheet (ej: 2026-02-20T03:00:01) ignore
+    // transacciones del mismo día que tienen hora 00:00:00
+    function soloFecha(n) { return n ? Math.floor(n / 1000000) * 1000000 : n; }
 
     // DEBUG: mostrar datos del primer producto con stockInicio o stockFisico
     const pDebug = _sheetProductos.find(p => p.stockInicio || p.stockFisico);
@@ -4883,28 +4890,33 @@ function recalcularTodosLosStocks() {
 
         // ── REGLA 1: STOCK FISICO verificado manualmente ──
         // null = celda vacía en sheet; 0 = valor cero real
-        if (p.stockFisico !== null && p.fechaStockFisico) {
+        // El conteo físico ya incluye los movimientos de ese día → ignorar transacciones con fecha <= ref
+        if (p.stockFisico !== null && p.stockFisico !== undefined && p.fechaStockFisico) {
             const refNum = parseFechaNum(p.fechaStockFisico);
             if (refNum) {
-                mapaBase[nombre]   = parseFloat(p.stockFisico);
-                mapaRefNum[nombre] = refNum;
+                mapaBase[nombre]    = parseFloat(p.stockFisico);
+                mapaRefNum[nombre]  = refNum;
+                mapaEsFisico[nombre] = true;
                 return;
             }
         }
 
         // ── REGLA 2: STOCK INICIAL MENSUAL ──
-        if (p.stockInicio !== null && (p.fechaStockInicio || p.fechaInicio)) {
+        // Es el stock al inicio del período → las compras/ventas del mismo día SÍ se cuentan (fnum < ref)
+        if (p.stockInicio !== null && p.stockInicio !== undefined && (p.fechaStockInicio || p.fechaInicio)) {
             const refNum = parseFechaNum(p.fechaStockInicio || p.fechaInicio);
             if (refNum) {
-                mapaBase[nombre]   = parseFloat(p.stockInicio);
-                mapaRefNum[nombre] = refNum;
+                mapaBase[nombre]    = parseFloat(p.stockInicio);
+                mapaRefNum[nombre]  = refNum;
+                mapaEsFisico[nombre] = false;
                 return;
             }
         }
 
         // ── REGLA 3: fallback — STOCK ACTUAL del sheet, sin filtro de fecha ──
-        mapaBase[nombre]   = parseFloat(p.stock) || 0;
-        mapaRefNum[nombre] = null;
+        mapaBase[nombre]    = parseFloat(p.stock) || 0;
+        mapaRefNum[nombre]  = null;
+        mapaEsFisico[nombre] = false;
     });
 
     // Restar ventas posteriores a la fecha base
@@ -4918,7 +4930,13 @@ function recalcularTodosLosStocks() {
             const nombre = String(it.nombre || '').trim().toUpperCase();
             if (mapaBase[nombre] == null) return;
             const ref = mapaRefNum[nombre];
-            if (ref && fnum && fnum <= ref) return; // igual o anterior → ignorar
+            if (ref && fnum) {
+                // REGLA 1 (stockFisico): comparar con hora exacta
+                // REGLA 2 (stockInicio): truncar al día para ignorar offset de timezone del sheet
+                const _r = mapaEsFisico[nombre] ? ref : soloFecha(ref);
+                const _f = mapaEsFisico[nombre] ? fnum : soloFecha(fnum);
+                if (mapaEsFisico[nombre] ? _f <= _r : _f < _r) return;
+            }
             mapaBase[nombre] -= parseFloat(it.cantidad) || 0;
         });
     });
@@ -4930,7 +4948,11 @@ function recalcularTodosLosStocks() {
             const nombre = String(it.nombre || '').trim().toUpperCase();
             if (mapaBase[nombre] == null) return;
             const ref = mapaRefNum[nombre];
-            if (ref && fnum && fnum <= ref) return; // igual o anterior → ignorar
+            if (ref && fnum) {
+                const _r = mapaEsFisico[nombre] ? ref : soloFecha(ref);
+                const _f = mapaEsFisico[nombre] ? fnum : soloFecha(fnum);
+                if (mapaEsFisico[nombre] ? _f <= _r : _f < _r) return;
+            }
             mapaBase[nombre] += parseFloat(it.cantidad) || 0;
         });
     });
@@ -4952,6 +4974,42 @@ function recalcularTodosLosStocks() {
         let cntC=0, sumC=0;
         (_sheetCompras||[]).forEach(cp => { const fnum=parseFechaNum(cp.fechaISO||cp.fecha||''); (cp.items||[]).forEach(it => { if(String(it.nombre||'').trim().toUpperCase()===nom){ if(!ref||!fnum||fnum>ref){cntC++;sumC+=parseFloat(it.cantidad)||0;} } }); });
         console.log('[PEPSI DBG POST] stockCalculado:', pPepsiPost.stockCalculado, '| ref:', ref, '| base:', mapaBase[nom], '| ventas count:', cntV, 'sum:', sumV, '| compras count:', cntC, 'sum:', sumC);
+    }
+
+    // DEBUG AVENA
+    const pAvena = _sheetProductos.find(p => p.nombre && p.nombre.toUpperCase().includes('AVENA') && p.nombre.toUpperCase().includes('X300'));
+    if (pAvena) {
+        const nom = pAvena.nombre.trim().toUpperCase();
+        const ref = mapaRefNum[nom];
+        const esFisico = mapaEsFisico[nom];
+        console.log('=== [AVENA DBG] ===');
+        console.log('  nombre:', pAvena.nombre);
+        console.log('  stockFisico:', pAvena.stockFisico, '| fechaStockFisico:', pAvena.fechaStockFisico);
+        console.log('  stockInicio:', pAvena.stockInicio, '| fechaStockInicio:', pAvena.fechaStockInicio, '| fechaInicio:', pAvena.fechaInicio);
+        console.log('  stock(fallback):', pAvena.stock);
+        console.log('  base:', mapaBase[nom], '| ref:', ref, '| esFisico:', esFisico, '| stockCalculado:', pAvena.stockCalculado);
+        const todasVA = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
+        todasVA.forEach(v => {
+            const fnum = parseFechaNum(v.fechaISO||v.fecha||'');
+            (v.items||[]).forEach(it => {
+                if (String(it.nombre||'').trim().toUpperCase() === nom) {
+                    const ignorada = ref && fnum && (esFisico ? fnum <= ref : fnum < ref);
+                    console.log('  VENTA fecha:', v.fechaISO||v.fecha, '| fnum:', fnum, '| ref:', ref, '| qty:', it.cantidad, '| fnum<ref:', fnum<ref, '| ignorada:', ignorada);
+                }
+            });
+        });
+        console.log('  total ventas en historial:', historial.length, '| _sheetVentas:', (_sheetVentas||[]).length);
+        console.log('  total compras en _sheetCompras:', (_sheetCompras||[]).length);
+        (_sheetCompras||[]).forEach(cp => {
+            const fnum = parseFechaNum(cp.fechaISO||cp.fecha||'');
+            (cp.items||[]).forEach(it => {
+                if (String(it.nombre||'').trim().toUpperCase() === nom) {
+                    const ignorada = ref && fnum && (esFisico ? fnum <= ref : fnum < ref);
+                    console.log('  COMPRA fecha:', cp.fechaISO||cp.fecha, '| fnum:', fnum, '| ref:', ref, '| qty:', it.cantidad, '| fnum<ref:', fnum<ref, '| ignorada:', ignorada);
+                }
+            });
+        });
+        console.log('=== [/AVENA DBG] ===');
     }
 }
 
@@ -11140,8 +11198,8 @@ function verDetalleProveedor(tipo, id){
 
         // SINCRONIZACIÓN GOOGLE SHEETS — Tiempo real (30s)
         // ══════════════════════════════════════════════════════
-        const SHEETS_URL  = 'https://script.google.com/macros/s/AKfycbzOVeXulZYx9_pY1IJ1pdGdecyn_EhKjT4a58jTTisbwxpHpqSdKPxOWRDDN5VV-_k8/exec';
-        const SHEETS_URL2 = 'https://script.google.com/macros/s/AKfycbzOVeXulZYx9_pY1IJ1pdGdecyn_EhKjT4a58jTTisbwxpHpqSdKPxOWRDDN5VV-_k8/exec';
+        const SHEETS_URL  = 'https://script.google.com/macros/s/AKfycbxetpzzbqyXdF02C_8w6__-KKbUNenxrMv8gML5jx7lO-j2yJRLwOYs_0QhQknCbb75/exec';
+        const SHEETS_URL2 = 'https://script.google.com/macros/s/AKfycbxetpzzbqyXdF02C_8w6__-KKbUNenxrMv8gML5jx7lO-j2yJRLwOYs_0QhQknCbb75/exec';
         function fetchSheets(options) {
             if (!options || options.method !== 'POST') {
                 fetch(SHEETS_URL2).catch(()=>{});
@@ -12820,24 +12878,13 @@ console.log("FILTRADAS:", filtradas.length);
             prod.stockComienzo     = real;
             prod.fechaStockInicio  = fecha;
 
-            // Enviar al sheet
+            // Enviar al sheet — tipo dedicado para escribir STOCK FISICO y FECHA STOCK FISICO
             const payload = {
-                tipo: 'producto',
-                id: prod.id || prod.IDPRODUCTOS || prod.numeroProd,
-                numeroProd: prod.id || prod.IDPRODUCTOS || prod.numeroProd,
+                tipo: 'verificar_stock',
+                id:     prod.id || prod.IDPRODUCTOS || prod.numeroProd,
                 nombre: prod.nombre,
-                costo: prod.costo || 0,
-                precioVenta: prod.precio || 0,
-                cantidad: real,
-                stockVerificado: real,
-                fechaVerif: fecha,
-                stockComienzo: real,
-                proveedor: prod.proveedor || '',
-                categoria: prod.categoria || '',
-                tipoVenta: prod.tipoVenta || '',
-                departamento: prod.depto || '',
-                codigos: prod.codigos || '',
-                imagen: prod.foto || ''
+                stockFisico:      real,   // → columna STOCK FISICO
+                fechaStockFisico: fecha   // → columna FECHA STOCK FISICO
             };
             fetchSheets({ method: 'POST', body: JSON.stringify(payload) });
 
