@@ -525,11 +525,18 @@ z-index:999999999;
     </div>
   </div>
 </div>
-<button id="btnSyncManual" onclick="forzarSync()" title="Sincronizar ahora"
-    style="position:fixed;bottom:20px;right:20px;z-index:9999999;
-    background:#10b981;border:none;color:black;border-radius:50%;
-    width:52px;height:52px;font-size:22px;cursor:pointer;
-    box-shadow:0 4px 20px rgba(16,185,129,0.5);">🔄</button>
+<div style="position:fixed;bottom:20px;right:20px;z-index:9999999;">
+    <button id="btnSyncManual" onclick="forzarSync()" title="Sincronizar ahora"
+        style="background:#10b981;border:none;color:black;border-radius:50%;
+        width:52px;height:52px;font-size:22px;cursor:pointer;
+        box-shadow:0 4px 20px rgba(16,185,129,0.5);">🔄</button>
+    <span id="colaPendienteBadge"
+        style="display:none;position:absolute;top:-6px;right:-6px;
+        background:#ef4444;color:white;border-radius:50%;
+        width:20px;height:20px;font-size:10px;font-weight:900;
+        align-items:center;justify-content:center;
+        border:2px solid #0f172a;">0</span>
+</div>
 
     <!-- Sidebar Lateral -->
     <aside class="w-full md:w-24 lg:w-64 bg-[#020617] border-b md:border-b-0 md:border-r border-slate-800 flex-shrink-0" style="display:flex;flex-direction:row;align-items:center;padding:8px 12px;gap:6px;overflow-x:auto;position:sticky;top:0;z-index:50;flex-wrap:nowrap;" id="mainSidebar">
@@ -11120,6 +11127,77 @@ function verDetalleProveedor(tipo, id){
         // ══════════════════════════════════════════════════════
         const SHEETS_URL  = 'https://script.google.com/macros/s/AKfycbxhx_T1o1Y_OpYMmCm_ahOzORUsW9uq9SON6iZi-ermezSukgrN099Vw6OSY4BrzgOh/exec';
         const SHEETS_URL2 = 'https://script.google.com/macros/s/AKfycbxhx_T1o1Y_OpYMmCm_ahOzORUsW9uq9SON6iZi-ermezSukgrN099Vw6OSY4BrzgOh/exec';
+        // ── COLA DE ENVÍOS PENDIENTES ──────────────────────────────────────
+        // Cuando no hay internet, los POSTs se guardan en localStorage.
+        // Al recuperar conexión se reenvían automáticamente.
+        const _COLA_KEY = 'natanael_cola_pendientes_v1';
+
+        function _colaGuardar(payload) {
+            try {
+                const cola = JSON.parse(localStorage.getItem(_COLA_KEY) || '[]');
+                cola.push({ payload, ts: Date.now() });
+                localStorage.setItem(_COLA_KEY, JSON.stringify(cola));
+                _colaActualizarBadge();
+            } catch(e) {}
+        }
+
+        function _colaActualizarBadge() {
+            try {
+                const cola = JSON.parse(localStorage.getItem(_COLA_KEY) || '[]');
+                const badge = document.getElementById('colaPendienteBadge');
+                if (!badge) return;
+                if (cola.length > 0) {
+                    badge.textContent = cola.length;
+                    badge.style.display = 'inline-flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            } catch(e) {}
+        }
+
+        async function _colaFlush() {
+            try {
+                const cola = JSON.parse(localStorage.getItem(_COLA_KEY) || '[]');
+                if (cola.length === 0) return;
+                const pendientes = [...cola];
+                // Limpiar la cola primero para evitar doble envío
+                localStorage.setItem(_COLA_KEY, '[]');
+                _colaActualizarBadge();
+                let enviados = 0, fallidos = [];
+                for (const item of pendientes) {
+                    try {
+                        const r = await fetch(SHEETS_URL2, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/plain' },
+                            body: item.payload
+                        });
+                        const txt = await r.text();
+                        const d = JSON.parse(txt);
+                        if (d.ok) { enviados++; }
+                        else { fallidos.push(item); }
+                    } catch(e) {
+                        fallidos.push(item); // sin red → volver a encolar
+                    }
+                }
+                // Re-encolar los que fallaron
+                if (fallidos.length > 0) {
+                    const colaActual = JSON.parse(localStorage.getItem(_COLA_KEY) || '[]');
+                    localStorage.setItem(_COLA_KEY, JSON.stringify([...fallidos, ...colaActual]));
+                }
+                _colaActualizarBadge();
+                if (enviados > 0) mostrarToast(`✅ ${enviados} envío${enviados>1?'s':''} pendiente${enviados>1?'s':''} sincronizado${enviados>1?'s':''}`, 'success');
+            } catch(e) {}
+        }
+
+        // Escuchar cuando vuelve la conexión → flush automático
+        window.addEventListener('online', () => {
+            mostrarToast('🟢 Conexión restaurada — sincronizando pendientes...', 'success');
+            setTimeout(_colaFlush, 1000);
+        });
+        window.addEventListener('offline', () => {
+            mostrarToast('🔴 Sin conexión — los cambios se guardan localmente', 'error');
+        });
+
         function fetchSheets(options) {
             if (!options || options.method !== 'POST') {
                 fetch(SHEETS_URL2).catch(()=>{});
@@ -11141,6 +11219,8 @@ function verDetalleProveedor(tipo, id){
                             const d = JSON.parse(txt);
                             if (d.ok) {
                                 mostrarToast('✓ Guardado en Sheet', 'success');
+                                // Si llegó bien, aprovechar a vaciar cola pendiente
+                                _colaFlush();
                             } else {
                                 mostrarToast('✗ Sheet error: ' + (d.error||txt.substring(0,100)), 'error');
                             }
@@ -11149,7 +11229,9 @@ function verDetalleProveedor(tipo, id){
                         }
                     })
                     .catch(e => {
-                        mostrarToast('✗ CORS/Red: ' + e.message, 'error');
+                        // Sin red → guardar en cola
+                        _colaGuardar(payload);
+                        mostrarToast('📥 Sin conexión — guardado localmente (' + (JSON.parse(localStorage.getItem(_COLA_KEY)||'[]').length) + ' pendiente/s)', 'error');
                     });
             } catch(e) {
                 console.error('[Sheet error]', e);
@@ -11385,6 +11467,7 @@ function verDetalleProveedor(tipo, id){
         };
 
         function iniciarSyncSheets() {
+            _colaActualizarBadge(); // mostrar pendientes al cargar
             const p = sincronizarSheets(); // sync inicial al cargar
             // Sync automático cada 5 segundos en segundo plano (Etapa 1 silenciosa)
             if (_syncInterval) clearInterval(_syncInterval);
@@ -11395,6 +11478,8 @@ function verDetalleProveedor(tipo, id){
         // Sync silencioso cada 5 segundos — llama sincronizarSheets en modo silencioso
         async function sincronizarSheetsSilencioso() {
             try {
+                // Primero intentar vaciar cola de pendientes
+                await _colaFlush();
                 await sincronizarSheets(true); // true = silencioso
             } catch(e) { /* silencioso */ }
         }
