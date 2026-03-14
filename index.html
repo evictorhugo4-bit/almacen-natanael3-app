@@ -9790,11 +9790,16 @@ renderIngresos();
     const saldo = (r.total||0) - yaPagado;
 
     document.getElementById('pagoCompraDesc').textContent =
-        (r.proveedor||'') + ((r.items||[]).length ? ' · ' + (r.items[0].nombre||'') : '');
+        (r.proveedor||'') + (nombreProducto ? ' · ' + nombreProducto : ((r.items||[]).length ? ' · ' + (r.items[0].nombre||'') : ''));
 
-    document.getElementById('pagoCompraTotal').textContent = '$'+Utils.fmt(r.total||0);
-    document.getElementById('pagoCompraYaPagado').textContent = '$'+Utils.fmt(yaPagado);
-    document.getElementById('pagoCompraSaldo').textContent = '$'+Utils.fmt(Math.max(0,saldo));
+    const montoItem = montoPreset > 0 ? montoPreset : null;
+    const totalMostrar = montoItem || r.total || 0;
+    const yaPagadoItem = montoItem ? 0 : yaPagado;
+    const saldoMostrar = montoItem || Math.max(0, saldo);
+
+    document.getElementById('pagoCompraTotal').textContent = '$'+Utils.fmt(totalMostrar);
+    document.getElementById('pagoCompraYaPagado').textContent = '$'+Utils.fmt(yaPagadoItem);
+    document.getElementById('pagoCompraSaldo').textContent = '$'+Utils.fmt(saldoMostrar);
 
     document.getElementById('inputPagoCompraMonto').value =
         montoPreset > 0 ? montoPreset : (Math.max(0,saldo) > 0 ? Math.max(0,saldo) : '');
@@ -9844,6 +9849,8 @@ _sheetPagoCompras.push({
     PRODUCTO: _pagoCompraNombre || (r.items||[]).map(i=>i.nombre).join(', '),
     'FORMA DE PAGO':_pagoCompraFP,
     MONTO:monto,
+    monto:monto,
+    proveedor: (r.proveedor||'').toUpperCase(),
     'FECHA ORIGINAL':r.fecha||''
 });
 
@@ -9875,6 +9882,12 @@ toggleModal('modalPagoCompra', false);
 mostrarToast(`✓ Pago de $${Utils.fmt(monto)} registrado`);
 
 renderCompras();
+
+// Refrescar modal proveedor si estaba abierto
+if (window._provDetalleActivo) {
+    console.log('[REFRESH PROV] refrescando:', JSON.stringify(window._provDetalleActivo));
+    verDetalleProveedor(window._provDetalleActivo.tipo, window._provDetalleActivo.id);
+}
 
 console.log("FUNCION TERMINADA"); }
 
@@ -10443,9 +10456,14 @@ function calcularCajaEsperada() {
 
                 // ── 1. DEUDA REAL AL PROVEEDOR (compras con crédito - pagos ya realizados) ──
                 const totalCreditoProv = comprasProv.reduce((s, c) => s + (Number(c.credito) || 0), 0);
+                const _idsComprasProv = new Set(comprasProv.map(c => String(c.idSheet||c.id||'').trim()).filter(Boolean));
                 const totalPagadoProv  = (_sheetPagoCompras||[])
-                    .filter(pg => (pg.proveedor||'').toUpperCase() === nombre.toUpperCase())
-                    .reduce((s, pg) => s + (Number(pg.monto) || 0), 0);
+                    .filter(pg => {
+                        const pgId = String(pg.IDCOMPRAS||'').trim();
+                        if (pgId) return _idsComprasProv.has(pgId);
+                        return (pg.proveedor||'').toUpperCase() === nombre.toUpperCase();
+                    })
+                    .reduce((s, pg) => s + (Number(pg.MONTO||pg.monto) || 0), 0);
                 const deudaProv = Math.max(0, totalCreditoProv - totalPagadoProv);
 
                 // ── 2. VALOR DEL STOCK DEL PROVEEDOR (stockCalculado × costo por producto) ──
@@ -10657,12 +10675,14 @@ window.verDetalleCategoriaGasto = function(categoria) {
 };
 
 window.pagarItemProv = function(esGasto, id, monto, nombreProducto) {
+    const nombre = nombreProducto ? decodeURIComponent(nombreProducto) : null;
     if (esGasto) abrirPagoEgreso(id, monto);
-    else abrirPagoCompra(id, monto, nombreProducto);
+    else abrirPagoCompra(id, monto, nombre);
 };
 
 window.verDetalleProveedor = function(tipo, id) {
     console.log("CLICK OK", tipo, id);
+    window._provDetalleActivo = { tipo, id };
 
     const db = tipo === 'negocio' ? _sheetProveedoresNegocio : _sheetProveedoresGastos;
     const proveedor = db.find(p => String(p.id) === String(id));
@@ -10687,13 +10707,23 @@ window.verDetalleProveedor = function(tipo, id) {
             const idReg = String(p.IDEGRESOS||p.idEgreso||'').trim();
             return registros.some(r => String(r.idSheet||'').trim() === idReg);
           })
-        : (_sheetPagoCompras||[]).filter(p => (p.proveedor||'').toUpperCase() === nombre.toUpperCase());
+        : (_sheetPagoCompras||[]).filter(p => {
+            const pIdC = String(p.IDCOMPRAS||'').trim();
+            if (pIdC) {
+                return registros.some(r => {
+                    const rId = String(r.idSheet||r.id||'').trim();
+                    return rId && pIdC === rId;
+                });
+            }
+            return (p.proveedor||'').toUpperCase() === nombre.toUpperCase();
+          });
 
     const totalCompras = registros.reduce((s,r)=> s+(Number(r.total)||0), 0);
     const totalCredito = registros.reduce((s,r)=> s+(Number(r.credito)||0), 0);
     const totalPagado  = esGasto
         ? pagosRegistrados.reduce((s,p)=> s+(Number(p.MONTO||p.monto)||0), 0)
-        : pagosRegistrados.reduce((s,p)=> s+(Number(p.monto)||0), 0);
+        : pagosRegistrados.reduce((s,p)=> s+(Number(p.MONTO||p.monto)||0), 0);
+    console.log('[DEUDA DBG] nombre:', nombre, '| registros:', registros.length, '| totalCredito:', totalCredito, '| pagosRegistrados:', pagosRegistrados.length, '| totalPagado:', totalPagado, '| sample pago:', pagosRegistrados[0] ? JSON.stringify(pagosRegistrados[0]) : 'ninguno');
     const deudaReal    = Math.max(0, totalCredito - totalPagado);
 
     // Reutilizar comprasProveedor y pagosComp como alias para el resto del código
@@ -10717,8 +10747,8 @@ window.verDetalleProveedor = function(tipo, id) {
         const pagadoEsta = esGasto
             ? pagosComp.filter(p => idC && String(p.IDEGRESOS||p.idEgreso||'').trim() === idC)
                        .reduce((s,p)=> s+(Number(p.MONTO||p.monto)||0), 0)
-            : pagosComp.filter(p => !idC || String(p.idCompra||p.IDCOMPRAS||'').trim() === idC)
-                       .reduce((s,p)=> s+(Number(p.monto)||0), 0);
+            : (idC ? pagosComp.filter(p => String(p.idCompra||p.IDCOMPRAS||'').trim() === idC) : [])
+                       .reduce((s,p)=> s+(Number(p.MONTO||p.monto)||0), 0);
         const montoBruto = (Number(c.credito)||0) || (Number(c.total)||0);
         const saldo = Math.max(0, montoBruto - pagadoEsta);
         if (saldo <= 0) return;
@@ -10749,13 +10779,14 @@ window.verDetalleProveedor = function(tipo, id) {
         : comprasPendList.map(({fecha, idC, saldoTotal, items, tickets}) => {
             const itemsHtml = items.map(item => {
                 const nom = (item.cantidad>1?item.cantidad+'x ':'')+( item.nombre||'—');
-                const subtotal = item._saldoItem || parseFloat(item.subtotal||0) || (parseFloat(item.costo||0)) * (parseFloat(item.cantidad)||1);
+                const subtotalReal = parseFloat(item.subtotal||0) || (parseFloat(item.costo||0)) * (parseFloat(item.cantidad)||1);
+                const subtotal = subtotalReal;
                 const itemIdC = item._idC || idC;
                 return `<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid #1e293b20;">
                     <span style="font-size:9px;color:#94a3b8;">📦</span>
                     <span style="font-size:10px;color:#cbd5e1;flex:1;">${Utils.escHtml(nom)}</span>
                     ${subtotal > 0 ? `<span style="font-size:10px;color:#94a3b8;font-family:monospace;">$${Utils.fmt(subtotal)}</span>` : ''}
-                    <button onclick="pagarItemProv(${esGasto?1:0},'${itemIdC}',${subtotal},${JSON.stringify(item.nombre||'')})"
+                    <button onclick="pagarItemProv(${esGasto?1:0},'${itemIdC}',${subtotal},'${encodeURIComponent(item.nombre||'')}')"
                         style="padding:3px 7px;background:#064e3b;color:#34d399;border:1px solid #065f46;border-radius:6px;cursor:pointer;font-size:11px;line-height:1;"
                         title="Registrar pago">💳</button>
                 </div>`;
@@ -12236,7 +12267,7 @@ if (indicator) indicator.classList.remove('hidden');
                         if (_md && !_md.classList.contains('hidden')) abrirDetalleCliente(clienteDetalleId);
                     }
                 }
-                if (Array.isArray(data.pagoCompras))          _sheetPagoCompras         = data.pagoCompras.map(r=>({IDCOMPRAS:String(r['IDCOMPRAS']||'').trim(),MONTO:parseSheetNum(r['MONTO']||0)}));
+                if (Array.isArray(data.pagoCompras))          _sheetPagoCompras         = data.pagoCompras.map(r=>({IDCOMPRAS:String(r['IDCOMPRAS']||'').trim(), MONTO:parseSheetNum(r['MONTO']||0), monto:parseSheetNum(r['MONTO']||0), proveedor:String(r['PROVEEDOR']||r['Proveedor']||'').trim().toUpperCase()}));
                 if (Array.isArray(data.pagoIngresos))         _sheetPagoIngresos        = data.pagoIngresos.map(r=>({IDINGRESOS:String(r['IDINGRESOS']||'').trim(),MONTO:parseSheetNum(r['MONTO']||0)}));
                 if (Array.isArray(data.pagoEgresos))          _sheetPagoEgresos         = data.pagoEgresos.map(r=>({IDEGRESOS:String(r['IDEGRESOS']||'').trim(),MONTO:parseSheetNum(r['MONTO']||0)}));
                 if (Array.isArray(data.pagoIngresosNegocio))  _sheetPagoIngNeg          = data.pagoIngresosNegocio.map(r=>({IDINGRESOSNEGOCIO:String(r['IDINGRESOSNEGOCIO']||'').trim(),MONTO:parseSheetNum(r['MONTO']||0),fechaISO:String(r['FECHA']||'').trim()}));
