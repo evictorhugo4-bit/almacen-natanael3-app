@@ -1852,11 +1852,13 @@ GUARDAR PRODUCTO
                         <thead>
                             <tr class="border-b border-slate-700">
                                 <th class="py-2 pr-3 text-left text-slate-400 font-black">PRODUCTO</th>
+                                <th class="py-2 pr-3 text-center text-slate-400 font-black">ACCIÓN</th>
+                                <th class="py-2 pr-3 text-right text-slate-400 font-black">VERIFICADO</th>
+                                <th class="py-2 pr-3 text-right text-slate-400 font-black">DIFERENCIA</th>
                                 <th class="py-2 pr-3 text-right text-slate-400 font-black">STOCK INICIAL</th>
                                 <th class="py-2 pr-3 text-right text-slate-400 font-black">COMPRAS</th>
                                 <th class="py-2 pr-3 text-right text-slate-400 font-black">VENTAS</th>
                                 <th class="py-2 pr-3 text-right text-slate-400 font-black">STOCK ACTUAL</th>
-                                <th class="py-2 text-right text-slate-400 font-black">VERIFICADO</th>
                             </tr>
                         </thead>
                         <tbody id="tablaStockProveedorBody"></tbody>
@@ -12833,6 +12835,7 @@ console.log("FILTRADAS:", filtradas.length);
             mostrarToast(`✅ Stock de "${prod.nombre}" verificado: ${Utils.fmt(real)}`);
             cerrarVerificarStock();
             renderInventario();
+            renderStockProveedor();
         };
 
         window.renderStockProveedor = function() {
@@ -12951,27 +12954,48 @@ console.log("FILTRADAS:", filtradas.length);
                 const r = calcKardexProd(p);
                 totSI += r.stockInicial; totC += r.compras; totV += r.ventas; totSA += r.stockActual;
                 const saColor = r.stockActual <= 0 ? 'text-red-400' : r.stockActual < 5 ? 'text-yellow-400' : 'text-emerald-400';
-                // Verificación física
-                const stockVerif = p.stockVerificado !== undefined && p.stockVerificado !== '' ? parseFloat(p.stockVerificado) : null;
-                const fechaVerif = p.fechaVerif ? String(p.fechaVerif).substring(0,10) : '';
-                let verifHtml = '<td class="py-2 text-right text-slate-600 font-bold">—</td>';
-                if (stockVerif !== null) {
-                    const diff = stockVerif - r.stockActual;
-                    const diffColor = diff === 0 ? 'text-emerald-400' : diff > 0 ? 'text-blue-400' : 'text-red-400';
-                    const diffTxt = diff === 0 ? '✅' : diff > 0 ? `+${Utils.fmt(diff)}` : Utils.fmt(diff);
-                    verifHtml = `<td class="py-2 text-right font-black">
+                // Verificación física — usa stockFisico (guardado por el modal VERIFICAR STOCK)
+                const stockVerif = (p.stockFisico !== null && p.stockFisico !== undefined && p.stockFisico !== '')
+                    ? parseFloat(p.stockFisico)
+                    : null;
+                // Nota: parseFloat(0) === 0, que es falsy pero !== null, la comparación stockVerif !== null cubre el 0
+                const fechaVerif = p.fechaStockFisico ? String(p.fechaStockFisico).substring(0,10) : '';
+
+                // Columna VERIFICADO
+                let verifHtml = '<td class="py-2 pr-3 text-right text-slate-600 font-bold">—</td>';
+                if (stockVerif !== null && !isNaN(stockVerif)) {
+                    verifHtml = `<td class="py-2 pr-3 text-right font-black">
                         <span class="text-white">${Utils.fmt(stockVerif)}</span>
-                        <span class="${diffColor} text-[9px] ml-1">(${diffTxt})</span>
                         ${fechaVerif ? `<br><span class="text-slate-500 text-[8px]">${fechaVerif}</span>` : ''}
                     </td>`;
                 }
+
+                // Columna DIFERENCIA (stockFisico - stockActual)
+                let difHtml = '<td class="py-2 pr-3 text-right text-slate-600 font-bold">—</td>';
+                if (stockVerif !== null && !isNaN(stockVerif)) {
+                    const diff = stockVerif - r.stockActual;
+                    const diffColor = diff === 0 ? 'text-emerald-400' : diff > 0 ? 'text-blue-400' : 'text-red-400';
+                    const diffTxt   = diff === 0 ? '✅' : diff > 0 ? `+${Utils.fmt(diff)}` : Utils.fmt(diff);
+                    difHtml = `<td class="py-2 pr-3 text-right font-black ${diffColor}">${diffTxt}</td>`;
+                }
+
+                // Buscar índice del producto para abrir modal verificar stock
+                const _idxProd = _sheetProductos.findIndex(x => x.nombre === p.nombre);
+
                 return `<tr class="hover:bg-slate-800/50 border-b border-slate-800">
                     <td class="py-2 pr-3 font-bold text-white">${p.nombre}</td>
+                    <td class="py-2 pr-3 text-center">
+                        <button onclick="abrirVerificarStock(${_idxProd})"
+                            class="px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-black rounded-lg">
+                            ✅ STOCK
+                        </button>
+                    </td>
+                    ${verifHtml}
+                    ${difHtml}
                     <td class="py-2 pr-3 text-right text-slate-300">${Utils.fmt(r.stockInicial)}</td>
                     <td class="py-2 pr-3 text-right text-blue-400 font-black">${Utils.fmt(r.compras)}</td>
                     <td class="py-2 pr-3 text-right text-orange-400 font-black">${Utils.fmt(r.ventas)}</td>
                     <td class="py-2 pr-3 text-right font-black ${saColor}">${Utils.fmt(r.stockActual)}</td>
-                    ${verifHtml}
                 </tr>`;
             }).join('');
 
