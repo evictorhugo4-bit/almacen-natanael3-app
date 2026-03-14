@@ -1858,7 +1858,7 @@ GUARDAR PRODUCTO
                                 <th class="py-2 pr-3 text-right text-slate-400 font-black">STOCK INICIAL</th>
                                 <th class="py-2 pr-3 text-right text-slate-400 font-black">COMPRAS</th>
                                 <th class="py-2 pr-3 text-right text-slate-400 font-black">VENTAS</th>
-                                <th class="py-2 pr-3 text-right text-slate-400 font-black">STOCK ACTUAL</th>
+                                <th class="py-2 pr-3 text-right text-slate-400 font-black">STOCK ESPERADO</th>
                             </tr>
                         </thead>
                         <tbody id="tablaStockProveedorBody"></tbody>
@@ -12945,7 +12945,8 @@ console.log("FILTRADAS:", filtradas.length);
                 });
 
                 if (prod._dbgPepsi2) console.log('[KARDEX PEPSI RESULT] refNum:', refNum, '| stockBase:', stockBase, '| totalCompras:', totalCompras, '| totalVentas:', totalVentas, '| saldo:', saldo, '| fdNum:', fdNum, '| fhNum:', fhNum);
-                return { stockInicial: stockBase, compras: totalCompras, ventas: totalVentas, stockActual: Math.round(saldo*100)/100 };
+                const stockEsperado = Math.round((stockBase + totalCompras - totalVentas) * 100) / 100;
+                return { stockInicial: stockBase, compras: totalCompras, ventas: totalVentas, stockActual: Math.round(saldo*100)/100, stockEsperado };
             }
 
             let totSI=0, totC=0, totV=0, totSA=0;
@@ -12953,7 +12954,7 @@ console.log("FILTRADAS:", filtradas.length);
             tbody.innerHTML = productos.map(p => {
                 const r = calcKardexProd(p);
                 totSI += r.stockInicial; totC += r.compras; totV += r.ventas; totSA += r.stockActual;
-                const saColor = r.stockActual <= 0 ? 'text-red-400' : r.stockActual < 5 ? 'text-yellow-400' : 'text-emerald-400';
+                const saColor = r.stockEsperado <= 0 ? 'text-red-400' : r.stockEsperado < 5 ? 'text-yellow-400' : 'text-emerald-400';
                 // Verificación física — usa stockFisico (guardado por el modal VERIFICAR STOCK)
                 const stockVerif = (p.stockFisico !== null && p.stockFisico !== undefined && p.stockFisico !== '')
                     ? parseFloat(p.stockFisico)
@@ -12973,7 +12974,7 @@ console.log("FILTRADAS:", filtradas.length);
                 // Columna DIFERENCIA (stockFisico - stockActual)
                 let difHtml = '<td class="py-2 pr-3 text-right text-slate-600 font-bold">—</td>';
                 if (stockVerif !== null && !isNaN(stockVerif)) {
-                    const diff = stockVerif - r.stockActual;
+                    const diff = stockVerif - r.stockEsperado;
                     const diffColor = diff === 0 ? 'text-emerald-400' : diff > 0 ? 'text-blue-400' : 'text-red-400';
                     const diffTxt   = diff === 0 ? '✅' : diff > 0 ? `+${Utils.fmt(diff)}` : Utils.fmt(diff);
                     difHtml = `<td class="py-2 pr-3 text-right font-black ${diffColor}">${diffTxt}</td>`;
@@ -12995,7 +12996,7 @@ console.log("FILTRADAS:", filtradas.length);
                     <td class="py-2 pr-3 text-right text-slate-300">${Utils.fmt(r.stockInicial)}</td>
                     <td class="py-2 pr-3 text-right text-blue-400 font-black">${Utils.fmt(r.compras)}</td>
                     <td class="py-2 pr-3 text-right text-orange-400 font-black">${Utils.fmt(r.ventas)}</td>
-                    <td class="py-2 pr-3 text-right font-black ${saColor}">${Utils.fmt(r.stockActual)}</td>
+                    <td class="py-2 pr-3 text-right font-black ${saColor}">${Utils.fmt(r.stockEsperado)}</td>
                 </tr>`;
             }).join('');
 
