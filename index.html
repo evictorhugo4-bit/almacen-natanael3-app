@@ -12945,11 +12945,51 @@ console.log("FILTRADAS:", filtradas.length);
                 });
 
                 if (prod._dbgPepsi2) console.log('[KARDEX PEPSI RESULT] refNum:', refNum, '| stockBase:', stockBase, '| totalCompras:', totalCompras, '| totalVentas:', totalVentas, '| saldo:', saldo, '| fdNum:', fdNum, '| fhNum:', fhNum);
-                const stockEsperado = Math.round((stockBase + totalCompras - totalVentas) * 100) / 100;
-                return { stockInicial: stockBase, compras: totalCompras, ventas: totalVentas, stockActual: Math.round(saldo*100)/100, stockEsperado };
+
+                // STOCK ESPERADO: siempre stockInicio (REGLA 2) + TODAS las compras - TODAS las ventas
+                // sin importar stockFisico, para reflejar lo que "debería haber" según movimientos
+                const _siEsperado = (prod.stockInicio !== null && prod.stockInicio !== undefined)
+                    ? (parseFloat(prod.stockInicio) || 0)
+                    : (parseFloat(prod.stock) || 0);
+                const _todasVE = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
+                const _siRefRaw = prod.fechaStockInicio || prod.fechaInicio || '';
+                const _siRefNum = parseFechaNum(_siRefRaw);
+                // soloFecha inline (no disponible en este scope)
+                const _sf = n => n ? Math.floor(n / 1000000) * 1000000 : n;
+                let _totCE = 0, _totVE = 0;
+                _todasVE.forEach(v => {
+                    const fnum = parseFechaNum(v.fechaISO||v.fecha||v['FECHA']||'');
+                    if (!fnum) return;
+                    if (_siRefNum && _sf(fnum) < _sf(_siRefNum)) return;
+                    if (fdNum && fnum < fdNum) return;
+                    if (fhNum && fnum > fhNum) return;
+                    (v.items||[]).forEach(it => {
+                        if (String(it.nombre||'').trim().toUpperCase() !== nombreUp) return;
+                        _totVE += parseFloat(it.cantidad)||0;
+                    });
+                });
+                const cpKeyE = cp => String(cp.fecha||cp.fechaISO||'').substring(0,16)+'|'+String(cp.proveedor||'')+'|'+String(cp.total||'');
+                const keysLocalE = new Set(_sheetCompras.map(cpKeyE));
+                const todasCE = [..._sheetCompras, ...(_sheetCompras||[]).filter(cp=>!_sheetCompras.some(c=>c.id===cp.id)&&!keysLocalE.has(cpKeyE(cp)))];
+                todasCE.forEach(cp => {
+                    const fnum = parseFechaNum(cp.fechaISO||cp.fecha);
+                    if (!fnum) return;
+                    if (_siRefNum && _sf(fnum) < _sf(_siRefNum)) return;
+                    if (fdNum && fnum < fdNum) return;
+                    if (fhNum && fnum > fhNum) return;
+                    (cp.items||[]).forEach(it => {
+                        if (String(it.nombre||'').trim().toUpperCase() !== nombreUp) return;
+                        _totCE += parseFloat(it.cantidad)||0;
+                    });
+                });
+                const stockEsperado = Math.round((_siEsperado + _totCE - _totVE) * 100) / 100;
+                return { stockInicial: _siEsperado, compras: _totCE, ventas: _totVE, stockActual: Math.round(saldo*100)/100, stockEsperado };
             }
 
             let totSI=0, totC=0, totV=0, totSA=0;
+
+            if (wrap) wrap.classList.remove('hidden');
+            if (placeholder) placeholder.style.display = 'none';
 
             tbody.innerHTML = productos.map(p => {
                 const r = calcKardexProd(p);
