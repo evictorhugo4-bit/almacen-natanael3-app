@@ -3923,6 +3923,7 @@ function confirmarVenta() {
     const efectivo = parseFloat(document.getElementById('inputEfectivo').value) || 0;
 
     const esClienteEspecial = ['CASA ERAZO', 'ERROR VENTAS', 'ERROR VENTA'].includes(cliente.toUpperCase().trim());
+    const esPublicoGeneral  = cliente.toUpperCase().trim() === 'PUBLICO GENERAL';
 
     const totalVenta = esClienteEspecial
         ? carrito.reduce((s, i) => {
@@ -3932,8 +3933,9 @@ function confirmarVenta() {
         }, 0)
         : carrito.reduce((s, i) => s + (i.precio * i.cantidad), 0);
 
-    const efectivoFinal = esClienteEspecial ? totalVenta : efectivo;
-    const deudaTotal = esClienteEspecial ? 0 : Math.max(0, totalVenta - efectivoFinal);
+    // Público General → siempre efectivo completo, sin deuda
+    const efectivoFinal = esClienteEspecial ? totalVenta : esPublicoGeneral ? totalVenta : efectivo;
+    const deudaTotal    = (esClienteEspecial || esPublicoGeneral) ? 0 : Math.max(0, totalVenta - efectivoFinal);
 
     const ahora = new Date();
     const idVenta = Utils.genId();
@@ -4032,9 +4034,9 @@ _efRest_v = Math.max(0, _efRest_v - _efPaga);
             precioCosto:  costo,
             costoTotal:   costoTotal,
             precioVenta:  precioVentaFinal,
-formaPago:    esClienteEspecial ? 'Efectivo' : (_efPaga <= 0 ? 'Crédito' : (_efPaga >= importeVenta ? 'Efectivo' : 'Mixto')),
-pagoEfectivo: esClienteEspecial ? 0 : _efPaga,
-pagoCredito:  esClienteEspecial ? 0 : Math.max(0, importeVenta - _efPaga),
+formaPago:    esClienteEspecial ? 'Efectivo' : esPublicoGeneral ? 'Efectivo' : (_efPaga <= 0 ? 'Crédito' : (_efPaga >= importeVenta ? 'Efectivo' : 'Mixto')),
+pagoEfectivo: esClienteEspecial ? 0 : esPublicoGeneral ? importeVenta : _efPaga,
+pagoCredito:  (esClienteEspecial || esPublicoGeneral) ? 0 : Math.max(0, importeVenta - _efPaga),
 pagoTotal:    esClienteEspecial ? 0 : importeVenta,
 ganancia:     ganancia
         };
@@ -4054,8 +4056,8 @@ ganancia:     ganancia
         efectivo:    esClienteEspecial ? 0 : efectivo,
         credito:     esClienteEspecial ? 0 : deudaTotal,
         total:       esClienteEspecial ? 0 : totalVenta,
-        formaPago:   esClienteEspecial ? 'Efectivo' : formaPago,
-        estado:      esClienteEspecial ? 'Finalizado' : (efectivoFinal >= totalVenta ? 'Finalizado' : 'Pendiente'),
+        formaPago:   (esClienteEspecial || esPublicoGeneral) ? 'Efectivo' : formaPago,
+        estado:      (esClienteEspecial || esPublicoGeneral) ? 'FINALIZADO' : (efectivoFinal >= totalVenta ? 'FINALIZADO' : 'PENDIENTE'),
         productos:   productosPayload
     };
 
@@ -4868,23 +4870,8 @@ function recalcularTodosLosStocks() {
     // transacciones del mismo día que tienen hora 00:00:00
     function soloFecha(n) { return n ? Math.floor(n / 1000000) * 1000000 : n; }
 
-    // DEBUG: mostrar datos del primer producto con stockInicio o stockFisico
-    const pDebug = _sheetProductos.find(p => p.stockInicio || p.stockFisico);
-    if (pDebug) {
-        console.log('[STOCK DEBUG]', pDebug.nombre,
-            '| stockFisico:', pDebug.stockFisico,
-            '| fechaStockFisico:', pDebug.fechaStockFisico,
-            '| stockInicio:', pDebug.stockInicio,
-            '| fechaStockInicio:', pDebug.fechaStockInicio,
-            '| parseFecha fisico:', parseFechaNum(pDebug.fechaStockFisico||''),
-            '| parseFecha inicio:', parseFechaNum(pDebug.fechaStockInicio||'')
-        );
-    }
 
     _sheetProductos.forEach(p => {
-    // DEBUG PEPSI
-    const pPepsi = _sheetProductos.find(p => p.nombre && p.nombre.toUpperCase().includes("PEPSI") && p.nombre.toUpperCase().includes("2"));
-    if (pPepsi) console.log("[PEPSI DBG] stockInicio:", pPepsi.stockInicio, "| fechaStockInicio:", JSON.stringify(pPepsi.fechaStockInicio), "| parsedRef:", parseFechaNum(pPepsi.fechaStockInicio||""), "| stockFisico:", pPepsi.stockFisico, "| stock:", pPepsi.stock);
 
         const nombre = p.nombre.trim().toUpperCase();
 
@@ -4962,74 +4949,9 @@ function recalcularTodosLosStocks() {
         const nombre = p.nombre.trim().toUpperCase();
         p.stockCalculado = mapaBase[nombre] ?? 0;
     });
-    // DEBUG PEPSI post-calc
-    const pPepsiPost = _sheetProductos.find(p => p.nombre && p.nombre.toUpperCase().includes('PEPSI') && p.nombre.toUpperCase().includes('2'));
-    if (pPepsiPost) {
-        const nom = pPepsiPost.nombre.trim().toUpperCase();
-        const ref = parseFechaNum(pPepsiPost.fechaStockInicio || pPepsiPost.fechaInicio || '');
-        console.log('[PEPSI DBG] nombre:', pPepsiPost.nombre, '| stockInicio:', pPepsiPost.stockInicio, '| fechaStockInicio:', pPepsiPost.fechaStockInicio, '| fechaInicio:', pPepsiPost.fechaInicio, '| ref:', ref);
-        const todasV = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
-        let cntV=0, sumV=0;
-        todasV.forEach(v => { const fnum=parseFechaNum(v.fechaISO||v.fecha||''); (v.items||[]).forEach(it => { if(String(it.nombre||'').trim().toUpperCase()===nom){ if(!ref||!fnum||fnum>ref){cntV++;sumV+=parseFloat(it.cantidad)||0;} } }); });
-        let cntC=0, sumC=0;
-        (_sheetCompras||[]).forEach(cp => { const fnum=parseFechaNum(cp.fechaISO||cp.fecha||''); (cp.items||[]).forEach(it => { if(String(it.nombre||'').trim().toUpperCase()===nom){ if(!ref||!fnum||fnum>ref){cntC++;sumC+=parseFloat(it.cantidad)||0;} } }); });
-        console.log('[PEPSI DBG POST] stockCalculado:', pPepsiPost.stockCalculado, '| ref:', ref, '| base:', mapaBase[nom], '| ventas count:', cntV, 'sum:', sumV, '| compras count:', cntC, 'sum:', sumC);
-    }
 
     // DEBUG AVENA
     const pAvena = _sheetProductos.find(p => p.nombre && p.nombre.toUpperCase().includes('AVENA') && p.nombre.toUpperCase().includes('X300'));
-    // Mostrar todos los nombres de items en compras que contengan AVENA
-    console.log('=== AVENA EN COMPRAS (raw) ===');
-    (_sheetCompras||[]).forEach(cp => {
-        (cp.items||[]).forEach(it => {
-            if (String(it.nombre||'').toUpperCase().includes('AVENA')) {
-                console.log('  [COMPRA] nombre raw:', JSON.stringify(it.nombre), '| fecha:', cp.fechaISO||cp.fecha);
-            }
-        });
-    });
-    const todasVdbg = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
-    console.log('=== AVENA EN VENTAS (raw) ===');
-    todasVdbg.forEach(v => {
-        (v.items||[]).forEach(it => {
-            if (String(it.nombre||'').toUpperCase().includes('AVENA')) {
-                console.log('  [VENTA] nombre raw:', JSON.stringify(it.nombre), '| fecha:', v.fechaISO||v.fecha);
-            }
-        });
-    });
-    if (pAvena) console.log('  [PRODUCTO] nombre raw:', JSON.stringify(pAvena.nombre), '| trim.upper:', JSON.stringify(pAvena.nombre.trim().toUpperCase()));
-    if (pAvena) {
-        const nom = pAvena.nombre.trim().toUpperCase();
-        const ref = mapaRefNum[nom];
-        const esFisico = mapaEsFisico[nom];
-        console.log('=== [AVENA DBG] ===');
-        console.log('  nombre:', pAvena.nombre);
-        console.log('  stockFisico:', pAvena.stockFisico, '| fechaStockFisico:', pAvena.fechaStockFisico);
-        console.log('  stockInicio:', pAvena.stockInicio, '| fechaStockInicio:', pAvena.fechaStockInicio, '| fechaInicio:', pAvena.fechaInicio);
-        console.log('  stock(fallback):', pAvena.stock);
-        console.log('  base:', mapaBase[nom], '| ref:', ref, '| esFisico:', esFisico, '| stockCalculado:', pAvena.stockCalculado);
-        const todasVA = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
-        todasVA.forEach(v => {
-            const fnum = parseFechaNum(v.fechaISO||v.fecha||'');
-            (v.items||[]).forEach(it => {
-                if (String(it.nombre||'').trim().toUpperCase() === nom) {
-                    const ignorada = ref && fnum && (esFisico ? fnum <= ref : fnum < ref);
-                    console.log('  VENTA fecha:', v.fechaISO||v.fecha, '| fnum:', fnum, '| ref:', ref, '| qty:', it.cantidad, '| fnum<ref:', fnum<ref, '| ignorada:', ignorada);
-                }
-            });
-        });
-        console.log('  total ventas en historial:', historial.length, '| _sheetVentas:', (_sheetVentas||[]).length);
-        console.log('  total compras en _sheetCompras:', (_sheetCompras||[]).length);
-        (_sheetCompras||[]).forEach(cp => {
-            const fnum = parseFechaNum(cp.fechaISO||cp.fecha||'');
-            (cp.items||[]).forEach(it => {
-                if (String(it.nombre||'').trim().toUpperCase() === nom) {
-                    const ignorada = ref && fnum && (esFisico ? fnum <= ref : fnum < ref);
-                    console.log('  COMPRA fecha:', cp.fechaISO||cp.fecha, '| fnum:', fnum, '| ref:', ref, '| qty:', it.cantidad, '| fnum<ref:', fnum<ref, '| ignorada:', ignorada);
-                }
-            });
-        });
-        console.log('=== [/AVENA DBG] ===');
-    }
 }
 
 
@@ -11217,8 +11139,8 @@ function verDetalleProveedor(tipo, id){
 
         // SINCRONIZACIÓN GOOGLE SHEETS — Tiempo real (30s)
         // ══════════════════════════════════════════════════════
-        const SHEETS_URL  = 'https://script.google.com/macros/s/AKfycbxetpzzbqyXdF02C_8w6__-KKbUNenxrMv8gML5jx7lO-j2yJRLwOYs_0QhQknCbb75/exec';
-        const SHEETS_URL2 = 'https://script.google.com/macros/s/AKfycbxetpzzbqyXdF02C_8w6__-KKbUNenxrMv8gML5jx7lO-j2yJRLwOYs_0QhQknCbb75/exec';
+        const SHEETS_URL  = 'https://script.google.com/macros/s/AKfycbxhx_T1o1Y_OpYMmCm_ahOzORUsW9uq9SON6iZi-ermezSukgrN099Vw6OSY4BrzgOh/exec';
+        const SHEETS_URL2 = 'https://script.google.com/macros/s/AKfycbxhx_T1o1Y_OpYMmCm_ahOzORUsW9uq9SON6iZi-ermezSukgrN099Vw6OSY4BrzgOh/exec';
         function fetchSheets(options) {
             if (!options || options.method !== 'POST') {
                 fetch(SHEETS_URL2).catch(()=>{});
