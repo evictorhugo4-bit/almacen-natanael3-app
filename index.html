@@ -11788,11 +11788,11 @@ function verDetalleProveedor(tipo, id){
                         }
                         // PAGO TOTAL acumula por ítem (cada fila es el precio del ítem)
                         ventasMap[key].total    += parseSheetNum(row['PAGO TOTAL']   ||row['Pago Total']||0);
-                        // PAGO EFECTIVO y PAGO CREDITO son de la venta completa — tomar solo de la primera fila
-                        if (ventasMap[key].items.length === 0) {
-                            ventasMap[key].efectivo = parseSheetNum(row['PAGO EFECTIVO']||row['Pago Efectivo']||0);
-                            ventasMap[key].deuda    = parseSheetNum(row['PAGO CREDITO'] ||row['Pago credito']||row['Pago Credito']||0);
-                        }
+                        // PAGO EFECTIVO y PAGO CREDITO: sumar todas las filas de la venta
+                        const _rowEf = parseSheetNum(row['PAGO EFECTIVO']||row['Pago Efectivo']||0);
+                        const _rowCr = parseSheetNum(row['PAGO CREDITO'] ||row['Pago credito']||row['Pago Credito']||0);
+                        ventasMap[key].efectivo += _rowEf;
+                        ventasMap[key].deuda    += _rowCr;
                         const rawCant = parseSheetNum(row['CANTIDAD']||row['Cantidad']||row['Cantidad Introducida']);
                         ventasMap[key].items.push({
                             nombre:    String(row['PRODUCTO']||row['Producto']||''),
@@ -13408,6 +13408,17 @@ console.log("FILTRADAS:", filtradas.length);
 
             let vTotal=0, vEf=0, vCr=0, vGanTotal=0, vGanEf=0, vGanCr=0, vCnt=0;
             const _ventasIdVistas = new Set();
+            const _debugVentas = []; // para consola
+
+            // Construir mapa de pagos cobrados por venta (monto de _pagoVentasSheet por IDVENTAS)
+            const _pagosPorVenta = {};
+            (_pagoVentasSheet||[]).forEach(p => {
+                const idV = String(p.idVenta||p.IDVENTAS||'').trim();
+                if (!idV) return;
+                const fnum = parseFechaNum(p.fecha||p.FECHA||p.fechaOrig||'');
+                if (!enRango(fnum)) return;
+                _pagosPorVenta[idV] = (_pagosPorVenta[idV]||0) + Number(p.monto||p.MONTO||0);
+            });
 
             // Usar _sheetVentas (ya agrupadas por IDVENTAS con efectivo de primera fila)
             const todasV = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
@@ -13418,16 +13429,99 @@ console.log("FILTRADAS:", filtradas.length);
                 const total = Number(v.total||0);
                 const ef    = Number(v.efectivo||0);
                 const cr    = Number(v.deuda||0);
-                const gan   = Number(v.ganancia || (v.items||[]).reduce((s,i)=>s+((Number(i.precio||0)-Number(i.costo||0))*(Number(i.cantidad)||1)),0) || 0);
+                const costoVenta = (v.items||[]).reduce((s,i)=>(s + (Number(i.costo||0) * (Number(i.cantidad)||1))), 0);
+                const ganBruta   = Number(v.ganancia || (v.items||[]).reduce((s,i)=>s+((Number(i.precio||0)-Number(i.costo||0))*(Number(i.cantidad)||1)),0) || 0);
                 const esPagadoCr = cr > 0 && ventasCreditoPagadas.has(String(v.id));
+                // Pagos de crédito ya cobrados para esta venta (en rango)
+                const pagosVenta = _pagosPorVenta[String(v.id)] || 0;
+                // Ganancia efectivo según fórmula: si (ef + pagosVenta) > costoVenta → ef + pagosVenta - costoVenta, sino 0
+                const cobradoEf  = ef + pagosVenta;
+                const ganEfVenta = cobradoEf > costoVenta ? cobradoEf - costoVenta : 0;
 
-                if (_resumenFiltro === 'efectivo' && cr > 0 && !esPagadoCr) return;
+                // Ganancia crédito: MIN(cr, ganBruta)
+                const ganCrVenta = Math.min(cr, ganBruta);
+
                 if (_resumenFiltro === 'credito'  && (cr <= 0 || esPagadoCr)) return;
+                if (_resumenFiltro === 'efectivo' && ef <= 0) return;
 
-                vTotal += total; vEf += ef; vCr += cr; vGanTotal += gan;
-                if (cr <= 0 || esPagadoCr) vGanEf += gan; else vGanCr += gan;
+                if (_resumenFiltro === 'efectivo') {
+                    vTotal += ef; vEf += ef; vCr += cr; vGanTotal += ganEfVenta; vGanEf += ganEfVenta;
+                } else if (_resumenFiltro === 'credito') {
+                    vTotal += cr; vEf += ef; vCr += cr; vGanTotal += ganCrVenta; vGanCr += ganCrVenta;
+                } else {
+                    vTotal += total; vEf += ef; vCr += cr;
+                    vGanEf += ganEfVenta; vGanCr += ganCrVenta;
+                    vGanTotal += ganEfVenta + ganCrVenta;
+                }
                 vCnt++;
+
+                // ── DEBUG: registrar productos de esta venta ──
+                const productos = (v.items||[]).map(i => i.nombre||i.name||'(sin nombre)').join(', ') || v.cliente || '(sin detalle)';
+                _debugVentas.push({
+                    id:      v.id,
+                    fecha:   v.fechaISO||v.fecha,
+                    cliente: v.cliente||'—',
+                    productos,
+                    total:   total,
+                    ef:      ef,
+                    cr:      cr,
+                    sumado:  _resumenFiltro === 'efectivo' ? ef : _resumenFiltro === 'credito' ? cr : total,
+                    formaPago: cr > 0 ? (ef > 0 ? 'MIXTO' : 'CRÉDITO') : 'EFECTIVO'
+                });
             });
+
+            // ── DEBUG CONSOLA ──
+            console.group('%c📊 RESUMEN VENTAS — filtro: ' + _resumenFiltro.toUpperCase(), 'color:#10b981;font-weight:900;font-size:13px;');
+            console.log('%cTotal ventas sumadas: ' + vCnt + '   |   TOTAL $' + vTotal.toFixed(2) + '   |   EF $' + vEf.toFixed(2) + '   |   CR $' + vCr.toFixed(2), 'color:#f59e0b;font-weight:700;');
+
+            // Una fila por ítem
+            const _debugRows = [];
+            _debugVentas.forEach(d => {
+                const prods = d.productos.split(', ');
+                prods.forEach((p, i) => {
+                    _debugRows.push({
+                        'ID Venta':   i === 0 ? d.id : '↑',
+                        'Fecha':      i === 0 ? d.fecha : '',
+                        'Cliente':    i === 0 ? d.cliente : '',
+                        'Producto':   p,
+                        'FormaPago':  i === 0 ? d.formaPago : '',
+                        'Total $':    i === 0 ? d.total : '',
+                        'Efectivo $': i === 0 ? d.ef : '',
+                        'Crédito $':  i === 0 ? d.cr : '',
+                        'Sumado $':   i === 0 ? d.sumado : ''
+                    });
+                });
+            });
+            console.table(_debugRows);
+
+            // Ventas EXCLUIDAS (ef=0 en el rango)
+            const _excluidasLog = [];
+            todasV.forEach(v => {
+                const fnum = parseFechaNum(v.fechaISO||v.fecha||'');
+                if (!enRango(fnum) || !_ventasIdVistas.has(v.id)) {
+                    if (enRango(fnum)) {
+                        const ef2 = Number(v.efectivo||0);
+                        const cr2 = Number(v.deuda||0);
+                        _excluidasLog.push({
+                            'ID': v.id,
+                            'Fecha': v.fechaISO||v.fecha,
+                            'Cliente': v.cliente,
+                            'Productos': (v.items||[]).map(i=>i.nombre).join(', '),
+                            'Motivo excluida': _resumenFiltro==='efectivo' && ef2<=0 ? '❌ ef=0' : _resumenFiltro==='credito' && cr2<=0 ? '❌ cr=0' : '❌ otro',
+                            'Total $': Number(v.total||0),
+                            'Efectivo $': ef2,
+                            'Crédito $': cr2
+                        });
+                    }
+                }
+            });
+            if (_excluidasLog.length > 0) {
+                console.group('%c⚠️ VENTAS EXCLUIDAS del filtro (' + _excluidasLog.length + ')', 'color:#ef4444;font-weight:900;');
+                console.table(_excluidasLog);
+                console.groupEnd();
+            }
+            console.groupEnd();
+            // ── FIN DEBUG ──
 
             // ── Función genérica para ingresos/egresos con filtro ──
             const sumFiltrado = (arr, campoFecha, campoTotal, campoEf, campoCr, campoGan) => {
@@ -13438,10 +13532,19 @@ console.log("FILTRADAS:", filtradas.length);
                     const rEf = Number(r[campoEf]||0);
                     const rCr = Number(r[campoCr]||0);
                     const rTotal = Number(r[campoTotal]||0);
-                    if (_resumenFiltro === 'efectivo' && rCr > 0) return;
-                    if (_resumenFiltro === 'credito'  && rCr <= 0) return;
-                    total += rTotal; ef += rEf; cr += rCr;
-                    if (campoGan) gan += Number(r[campoGan]||0);
+                    const rGan = campoGan ? Number(r[campoGan]||0) : 0;
+                    if (_resumenFiltro === 'efectivo') {
+                        if (rEf <= 0) return;
+                        total += rEf; ef += rEf; cr += rCr;
+                        if (campoGan) gan += rGan;
+                    } else if (_resumenFiltro === 'credito') {
+                        if (rCr <= 0) return;
+                        total += rCr; ef += rEf; cr += rCr;
+                        if (campoGan) gan += rGan;
+                    } else {
+                        total += rTotal; ef += rEf; cr += rCr;
+                        if (campoGan) gan += rGan;
+                    }
                 });
                 return {total, ef, cr, gan};
             };
@@ -13466,9 +13569,15 @@ console.log("FILTRADAS:", filtradas.length);
                     const rEf = Number(r.efectivo||r.pagoEfectivo||0);
                     const rCr = Number(r.credito||r.pagoCredito||0);
                     const rT  = Number(r.total||0) || rEf + rCr;
-                    if (_resumenFiltro==='efectivo' && rCr>0) return;
-                    if (_resumenFiltro==='credito'  && rCr<=0) return;
-                    total+=rT; ef+=rEf; cr+=rCr;
+                    if (_resumenFiltro==='efectivo') {
+                        if (rEf<=0) return;
+                        total+=rEf; ef+=rEf; cr+=rCr;
+                    } else if (_resumenFiltro==='credito') {
+                        if (rCr<=0) return;
+                        total+=rCr; ef+=rEf; cr+=rCr;
+                    } else {
+                        total+=rT; ef+=rEf; cr+=rCr;
+                    }
                 });
                 return {total,ef,cr};
             })();
@@ -13493,8 +13602,8 @@ console.log("FILTRADAS:", filtradas.length);
             const penTotal = sumPago(_pagoEgrNegSheet||_sheetPagoEgrNeg||[]);
 
             // ── Totales generales ──
-            const totalEntradas = vTotal + ing.total + ingNeg.total;
-            const totalSalidas  = comp.total + egr.total + egrNeg.total;
+            const totalEntradas = vTotal + ing.total + ingNeg.total + pvTotal + piTotal + pinTotal;
+            const totalSalidas  = comp.total + egr.total + egrNeg.total + pcTotal + peTotal + penTotal;
             const balance       = totalEntradas - totalSalidas;
 
             // ── Ganancias totales ──
@@ -13519,6 +13628,7 @@ console.log("FILTRADAS:", filtradas.length);
             });
 
             const colorMap = {emerald:'#10b981',blue:'#3b82f6',cyan:'#06b6d4',orange:'#f97316',red:'#ef4444',pink:'#ec4899'};
+            // kpiData se mantiene para la tabla de detalle
             const kpiData = [
                 { label:'Ventas',              total:vTotal,       ef:vEf,       cr:vCr,       color:'emerald' },
                 { label:'Pago Ventas',         total:pvTotal,      ef:pvTotal,   cr:0,          color:'emerald' },
@@ -13533,20 +13643,40 @@ console.log("FILTRADAS:", filtradas.length);
                 { label:'Egresos Negocio',     total:egrNeg.total, ef:egrNeg.ef, cr:egrNeg.cr,  color:'pink' },
                 { label:'Pago Egr. Negocio',   total:penTotal,     ef:penTotal,  cr:0,          color:'pink' },
             ];
+            const kpiIngresos = kpiData.slice(0,6);
+            const kpiEgresos  = kpiData.slice(6,12);
+            const cardIng = k => `<div class="glass-card rounded-2xl p-3 border" style="border-color:#10b98144;background:linear-gradient(135deg,#052e1a 0%,#0f172a 100%);">
+                <p style="font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.1em;color:#10b981;margin-bottom:3px;">▲ ${k.label}</p>
+                <p style="font-size:1.1rem;font-weight:900;font-family:monospace;color:#34d399;">$${Utils.fmt(k.total)}</p>
+                <div style="display:flex;gap:8px;margin-top:3px;">
+                    <span style="font-size:8px;font-weight:700;color:#6ee7b7;">EF $${Utils.fmt(k.ef)}</span>
+                    ${k.cr>0?`<span style="font-size:8px;font-weight:700;color:#fca5a5;">CR $${Utils.fmt(k.cr)}</span>`:''}
+                </div>
+            </div>`;
+            const cardEgr = k => `<div class="glass-card rounded-2xl p-3 border" style="border-color:#ef444444;background:linear-gradient(135deg,#2d0a0a 0%,#0f172a 100%);">
+                <p style="font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.1em;color:#ef4444;margin-bottom:3px;">▼ ${k.label}</p>
+                <p style="font-size:1.1rem;font-weight:900;font-family:monospace;color:#f87171;">$${Utils.fmt(k.total)}</p>
+                <div style="display:flex;gap:8px;margin-top:3px;">
+                    <span style="font-size:8px;font-weight:700;color:#fca5a5;">EF $${Utils.fmt(k.ef)}</span>
+                    ${k.cr>0?`<span style="font-size:8px;font-weight:700;color:#fda4af;">CR $${Utils.fmt(k.cr)}</span>`:''}
+                </div>
+            </div>`;
 
             document.getElementById('resumenKpis').innerHTML =
-                // Cards por categoría
-                kpiData.map(k => {
-                    const c = colorMap[k.color]||'#10b981';
-                    return `<div class="glass-card rounded-2xl p-3 border" style="border-color:${c}33;">
-                        <p class="text-[8px] font-black uppercase tracking-widest mb-1" style="color:${c};">${k.label}</p>
-                        <p class="text-lg font-black text-white font-mono">$${Utils.fmt(k.total)}</p>
-                        <div class="flex gap-2 mt-1">
-                            <span class="text-[8px] text-emerald-400 font-bold">EF $${Utils.fmt(k.ef)}</span>
-                            ${k.cr>0?`<span class="text-[8px] text-red-400 font-bold">CR $${Utils.fmt(k.cr)}</span>`:''}
+                `<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div style="padding:4px 6px;border-bottom:2px solid #10b98155;margin-bottom:2px;">
+                            <span style="font-size:10px;font-weight:900;color:#10b981;text-transform:uppercase;letter-spacing:.1em;">💚 INGRESOS</span>
                         </div>
-                    </div>`;
-                }).join('')
+                        ${kpiIngresos.map(cardIng).join('')}
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div style="padding:4px 6px;border-bottom:2px solid #ef444455;margin-bottom:2px;">
+                            <span style="font-size:10px;font-weight:900;color:#ef4444;text-transform:uppercase;letter-spacing:.1em;">🔴 EGRESOS</span>
+                        </div>
+                        ${kpiEgresos.map(cardEgr).join('')}
+                    </div>
+                </div>`
                 // Barra resumen principal
                 + `<div class="glass-card rounded-2xl p-4 border border-amber-500/40 col-span-2 md:col-span-4">
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
