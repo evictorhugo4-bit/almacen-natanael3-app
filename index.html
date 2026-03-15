@@ -13700,7 +13700,14 @@ console.log("FILTRADAS:", filtradas.length);
                     <p class="text-[9px] font-black uppercase tracking-widest mb-2" style="color:${efectivoEnCaja>=0?'#10b981':'#ef4444'}">💵 Efectivo en caja (debería haber)</p>
                     <div class="grid grid-cols-3 gap-3">
                         <div class="text-center"><p class="text-[8px] font-black text-emerald-400 uppercase">Entradas EF</p><p class="text-lg font-black text-emerald-400 font-mono">$${Utils.fmt(entEf)}</p></div>
-                        <div class="text-center"><p class="text-[8px] font-black text-red-400 uppercase">Salidas EF</p><p class="text-lg font-black text-red-400 font-mono">$${Utils.fmt(salEf)}</p></div>
+                        <div class="text-center">
+                            ${_resumenFiltro === 'total'
+                                ? `<p class="text-[8px] font-black uppercase tracking-widest mb-1" style="color:#a78bfa;">🙏 Diezmo Maria Jesus</p>
+                                   <p class="text-[8px] font-black uppercase" style="color:#c4b5fd;">(5% Gan. Total)</p>
+                                   <p class="text-xl font-black font-mono" style="color:#a78bfa;">$${Utils.fmt(ganTotal * 0.05)}</p>`
+                                : `<p class="text-[8px] font-black text-red-400 uppercase">Salidas EF</p><p class="text-lg font-black text-red-400 font-mono">$${Utils.fmt(salEf)}</p>`
+                            }
+                        </div>
                         <div class="text-center"><p class="text-[8px] font-black uppercase" style="color:${efectivoEnCaja>=0?'#10b981':'#ef4444'}">En Caja</p><p class="text-2xl font-black font-mono" style="color:${efectivoEnCaja>=0?'#10b981':'#ef4444'}">$${Utils.fmt(efectivoEnCaja)}</p></div>
                     </div>
                 </div>`;
