@@ -13116,151 +13116,91 @@ console.log("FILTRADAS:", filtradas.length);
             const fdNum = filtroDesde ? parseFechaNum(filtroDesde) : null;
             const fhNum = filtroHasta ? parseFechaNum(filtroHasta) : null;
 
-            // Función que replica EXACTAMENTE el cálculo del Kardex para un producto
+            // ── PRE-INDEXAR ventas y compras por nombre (una sola vez) ──
+            const todasV = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
+            const todasC = _sheetCompras || [];
+
+            // Mapa: nombreUp → [{fechaNum, cantidad}]
+            const ventasPorNombre = {};
+            todasV.forEach(v => {
+                const fnum = parseFechaNum(v.fechaISO || v.fecha || '');
+                if (!fnum) return;
+                (v.items||[]).forEach(it => {
+                    const n = String(it.nombre||'').trim().toUpperCase();
+                    if (!n) return;
+                    if (!ventasPorNombre[n]) ventasPorNombre[n] = [];
+                    ventasPorNombre[n].push({ fechaNum: fnum, cantidad: parseFloat(it.cantidad)||0 });
+                });
+            });
+            const comprasPorNombre = {};
+            todasC.forEach(cp => {
+                const fnum = parseFechaNum(cp.fechaISO || cp.fecha);
+                if (!fnum) return;
+                (cp.items||[]).forEach(it => {
+                    const n = String(it.nombre||'').trim().toUpperCase();
+                    if (!n) return;
+                    if (!comprasPorNombre[n]) comprasPorNombre[n] = [];
+                    comprasPorNombre[n].push({ fechaNum: fnum, cantidad: parseFloat(it.cantidad)||0 });
+                });
+            });
+
+            // ── Calcular kardex usando índices pre-construidos ──
             function calcKardexProd(prod) {
                 const nombreUp = String(prod.nombre||'').trim().toUpperCase();
-                if (nombreUp.includes('PEPSI') && nombreUp.includes('2')) console.log('[KARDEX PEPSI]', JSON.stringify({stockFisico:prod.stockFisico, fechaStockFisico:prod.fechaStockFisico, stockInicio:prod.stockInicio, fechaStockInicio:prod.fechaStockInicio, fechaInicio:prod.fechaInicio, stockVerificado:prod.stockVerificado, fechaVerif:prod.fechaVerif, stock:prod.stock}));
-                if (nombreUp.includes('PEPSI') && nombreUp.includes('2')) {
-                    // log después del cálculo de refNum — necesitamos hacerlo al final, guardamos flag
-                    prod._dbgPepsi2 = true;
-                }
+                const vItems = ventasPorNombre[nombreUp] || [];
+                const cItems = comprasPorNombre[nombreUp] || [];
 
-                // Regla 1: stockFisico verificado (prioridad)
+                // Determinar stockBase y fechaRef
                 let stockBase, fechaRefRaw;
                 if (prod.stockFisico !== null && prod.stockFisico !== undefined && prod.stockFisico !== '' && prod.fechaStockFisico) {
                     stockBase   = parseFloat(prod.stockFisico);
                     fechaRefRaw = prod.fechaStockFisico;
-                }
-                // Regla 2: stockInicio mensual
-                else if (prod.stockInicio !== null && prod.stockInicio !== undefined && (prod.fechaStockInicio || prod.fechaInicio)) {
+                } else if (prod.stockInicio !== null && prod.stockInicio !== undefined && (prod.fechaStockInicio || prod.fechaInicio)) {
                     stockBase   = parseFloat(prod.stockInicio) || 0;
                     fechaRefRaw = prod.fechaStockInicio || prod.fechaInicio || '';
-                }
-                // Regla 3: fallback stock actual
-                else {
+                } else {
                     stockBase   = parseFloat(prod.stock) || 0;
                     fechaRefRaw = '';
                 }
-
                 const refNum = parseFechaNum(fechaRefRaw);
 
-                // Si hay filtro DESDE activo, calcular el stock al inicio del período
-                // sumando compras y restando ventas desde refNum hasta fdNum (exclusive)
-                // para obtener el stockBase correcto al inicio del rango seleccionado
+                // Ajuste de stockBase si hay filtro DESDE posterior a refNum
                 let stockBaseAjustado = stockBase;
                 if (fdNum && refNum && fdNum > refNum) {
-                    // Contar compras entre refNum y fdNum
-                    const cpKeyPre = cp => String(cp.fecha||cp.fechaISO||'').substring(0,16)+'|'+String(cp.proveedor||'')+'|'+String(cp.total||'');
-                    const keysLocalPre = new Set(_sheetCompras.map(cpKeyPre));
-                    const todasCPre = [..._sheetCompras, ...(_sheetCompras||[]).filter(cp=>!_sheetCompras.some(c=>c.id===cp.id)&&!keysLocalPre.has(cpKeyPre(cp)))];
-                    todasCPre.forEach(cp => {
-                        const fnum = parseFechaNum(cp.fechaISO || cp.fecha);
-                        if (!fnum || fnum <= refNum || fnum >= fdNum) return;
-                        (cp.items||[]).forEach(it => {
-                            if (String(it.nombre||'').trim().toUpperCase() !== nombreUp) return;
-                            stockBaseAjustado += parseFloat(it.cantidad)||0;
-                        });
-                    });
-                    // Contar ventas entre refNum y fdNum
-                    const todasVPre = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
-                    todasVPre.forEach(v => {
-                        const fnum = parseFechaNum(v.fechaISO || v.fecha || v['FECHA'] || '');
-                        if (!fnum || fnum <= refNum || fnum >= fdNum) return;
-                        (v.items||[]).forEach(it => {
-                            if (String(it.nombre||'').trim().toUpperCase() !== nombreUp) return;
-                            stockBaseAjustado -= parseFloat(it.cantidad)||0;
-                        });
-                    });
+                    cItems.forEach(it => { if (it.fechaNum > refNum && it.fechaNum < fdNum) stockBaseAjustado += it.cantidad; });
+                    vItems.forEach(it => { if (it.fechaNum > refNum && it.fechaNum < fdNum) stockBaseAjustado -= it.cantidad; });
                 }
 
-                // Usar fdNum como referencia efectiva si es posterior a refNum
                 const refEfectivo = (fdNum && refNum && fdNum > refNum) ? null : refNum;
                 const baseEfectiva = (fdNum && refNum && fdNum > refNum) ? stockBaseAjustado : stockBase;
 
-                const movimientos = [];
-                if (refEfectivo) {
-                    movimientos.push({ fechaNum: refEfectivo, entrada: baseEfectiva, salida: 0, isInicio: true });
-                }
-
-                // Ventas dentro del rango seleccionado
-                const todasV = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
-                todasV.forEach(v => {
-                    const fnum = parseFechaNum(v.fechaISO || v.fecha || v['FECHA'] || '');
-                    if (!fnum) return;
-                    if (refEfectivo && fnum <= refEfectivo) return;
-                    if (fdNum && fnum < fdNum) return;
-                    if (fhNum && fnum > fhNum) return;
-                    (v.items||[]).forEach(it => {
-                        if (String(it.nombre||'').trim().toUpperCase() !== nombreUp) return;
-                        movimientos.push({ fechaNum: fnum, entrada: 0, salida: parseFloat(it.cantidad)||0 });
-                    });
-                });
-
-                // Compras dentro del rango seleccionado
-                const cpKey = cp => String(cp.fecha||cp.fechaISO||'').substring(0,16)+'|'+String(cp.proveedor||'')+'|'+String(cp.total||'');
-                const keysLocal = new Set(_sheetCompras.map(cpKey));
-                const todasC = [..._sheetCompras, ...(_sheetCompras||[]).filter(cp=>!_sheetCompras.some(c=>c.id===cp.id)&&!keysLocal.has(cpKey(cp)))];
-                todasC.forEach(cp => {
-                    const fnum = parseFechaNum(cp.fechaISO || cp.fecha);
-                    if (!fnum) return;
-                    if (refEfectivo && fnum <= refEfectivo) return;
-                    if (fdNum && fnum < fdNum) return;
-                    if (fhNum && fnum > fhNum) return;
-                    (cp.items||[]).forEach(it => {
-                        if (String(it.nombre||'').trim().toUpperCase() !== nombreUp) return;
-                        movimientos.push({ fechaNum: fnum, entrada: parseFloat(it.cantidad)||0, salida: 0 });
-                    });
-                });
-
-                const ordenados = movimientos.sort((a,b) => a.fechaNum - b.fechaNum);
-
-                let saldo = refEfectivo ? 0 : baseEfectiva;
+                // Kardex en rango
+                let saldo = refEfectivo ? baseEfectiva : baseEfectiva;
                 let totalCompras = 0, totalVentas = 0;
-                ordenados.forEach(m => {
-                    if (m.isInicio) saldo = m.entrada;
-                    else {
-                        saldo += m.entrada - m.salida;
-                        totalCompras += m.entrada;
-                        totalVentas  += m.salida;
-                    }
+                vItems.forEach(it => {
+                    if (refEfectivo && it.fechaNum <= refEfectivo) return;
+                    if (fdNum && it.fechaNum < fdNum) return;
+                    if (fhNum && it.fechaNum > fhNum) return;
+                    saldo -= it.cantidad; totalVentas += it.cantidad;
+                });
+                cItems.forEach(it => {
+                    if (refEfectivo && it.fechaNum <= refEfectivo) return;
+                    if (fdNum && it.fechaNum < fdNum) return;
+                    if (fhNum && it.fechaNum > fhNum) return;
+                    saldo += it.cantidad; totalCompras += it.cantidad;
                 });
 
-                if (prod._dbgPepsi2) console.log('[KARDEX PEPSI RESULT] refNum:', refNum, '| stockBase:', stockBase, '| totalCompras:', totalCompras, '| totalVentas:', totalVentas, '| saldo:', saldo, '| fdNum:', fdNum, '| fhNum:', fhNum);
-
-                // STOCK ESPERADO: stockInicio + compras posteriores a FECHA INICIAL - ventas posteriores a FECHA INICIAL
-                // Solo filtra por FECHA INICIAL con hora exacta — NO usa fdNum/fhNum del filtro de UI
+                // Stock esperado (sin filtro de UI, solo desde FECHA INICIAL)
                 const _siEsperado = (prod.stockInicio !== null && prod.stockInicio !== undefined)
                     ? (parseFloat(prod.stockInicio) || 0)
                     : (parseFloat(prod.stock) || 0);
-                const _siRefRaw = prod.fechaStockInicio || prod.fechaInicio || '';
-                const _siRefNum = parseFechaNum(_siRefRaw);
-                const _todasVE = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
+                const _siRefNum = parseFechaNum(prod.fechaStockInicio || prod.fechaInicio || '');
                 let _totCE = 0, _totVE = 0;
-                // Ventas: solo las posteriores (hora exacta) a FECHA INICIAL
-                _todasVE.forEach(v => {
-                    const fnum = parseFechaNum(v.fechaISO||v.fecha||v['FECHA']||'');
-                    if (!fnum) return;
-                    if (_siRefNum && fnum <= _siRefNum) return; // igual o anterior → ignorar
-                    (v.items||[]).forEach(it => {
-                        if (String(it.nombre||'').trim().toUpperCase() !== nombreUp) return;
-                        _totVE += parseFloat(it.cantidad)||0;
-                    });
-                });
-                // Compras: solo las posteriores (hora exacta) a FECHA INICIAL
-                const cpKeyE = cp => String(cp.fecha||cp.fechaISO||'').substring(0,16)+'|'+String(cp.proveedor||'')+'|'+String(cp.total||'');
-                const keysLocalE = new Set(_sheetCompras.map(cpKeyE));
-                const todasCE = [..._sheetCompras, ...(_sheetCompras||[]).filter(cp=>!_sheetCompras.some(c=>c.id===cp.id)&&!keysLocalE.has(cpKeyE(cp)))];
-                todasCE.forEach(cp => {
-                    const fnum = parseFechaNum(cp.fechaISO||cp.fecha);
-                    if (!fnum) return;
-                    if (_siRefNum && fnum <= _siRefNum) return; // igual o anterior → ignorar
-                    (cp.items||[]).forEach(it => {
-                        if (String(it.nombre||'').trim().toUpperCase() !== nombreUp) return;
-                        _totCE += parseFloat(it.cantidad)||0;
-                    });
-                });
+                vItems.forEach(it => { if (!_siRefNum || it.fechaNum > _siRefNum) _totVE += it.cantidad; });
+                cItems.forEach(it => { if (!_siRefNum || it.fechaNum > _siRefNum) _totCE += it.cantidad; });
                 const stockEsperado = Math.round((_siEsperado + _totCE - _totVE) * 100) / 100;
-                return { stockInicial: _siEsperado, compras: _totCE, ventas: _totVE, stockActual: Math.round(saldo*100)/100, stockEsperado };
+
+                return { stockInicial: _siEsperado, compras: totalCompras, ventas: totalVentas, stockActual: Math.round(saldo*100)/100, stockEsperado };
             }
 
             let totSI=0, totC=0, totV=0, totSA=0;
@@ -13272,14 +13212,10 @@ console.log("FILTRADAS:", filtradas.length);
                 const r = calcKardexProd(p);
                 totSI += r.stockInicial; totC += r.compras; totV += r.ventas; totSA += r.stockActual;
                 const saColor = r.stockEsperado <= 0 ? 'text-red-400' : r.stockEsperado < 5 ? 'text-yellow-400' : 'text-emerald-400';
-                // Verificación física — usa stockFisico (guardado por el modal VERIFICAR STOCK)
                 const stockVerif = (p.stockFisico !== null && p.stockFisico !== undefined && p.stockFisico !== '')
-                    ? parseFloat(p.stockFisico)
-                    : null;
-                // Nota: parseFloat(0) === 0, que es falsy pero !== null, la comparación stockVerif !== null cubre el 0
+                    ? parseFloat(p.stockFisico) : null;
                 const fechaVerif = p.fechaStockFisico ? String(p.fechaStockFisico).substring(0,10) : '';
 
-                // Columna VERIFICADO
                 let verifHtml = '<td class="py-2 pr-3 text-right text-slate-600 font-bold">—</td>';
                 if (stockVerif !== null && !isNaN(stockVerif)) {
                     verifHtml = `<td class="py-2 pr-3 text-right font-black">
@@ -13288,7 +13224,6 @@ console.log("FILTRADAS:", filtradas.length);
                     </td>`;
                 }
 
-                // Columna DIFERENCIA (stockFisico - stockActual)
                 let difHtml = '<td class="py-2 pr-3 text-right text-slate-600 font-bold">—</td>';
                 if (stockVerif !== null && !isNaN(stockVerif)) {
                     const diff = stockVerif - r.stockEsperado;
@@ -13297,7 +13232,6 @@ console.log("FILTRADAS:", filtradas.length);
                     difHtml = `<td class="py-2 pr-3 text-right font-black ${diffColor}">${diffTxt}</td>`;
                 }
 
-                // Buscar índice del producto para abrir modal verificar stock
                 const _idxProd = _sheetProductos.findIndex(x => x.nombre === p.nombre);
 
                 return `<tr class="hover:bg-slate-800/50 border-b border-slate-800">
@@ -13338,6 +13272,8 @@ console.log("FILTRADAS:", filtradas.length);
             if (wrap) wrap.classList.remove('hidden');
             if (placeholder) placeholder.style.display = 'none';
         };
+
+
 
         //  TABS ESTADÍSTICAS
         // ══════════════════════════════════════════
