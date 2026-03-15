@@ -1054,7 +1054,7 @@ GUARDAR PRODUCTO
 </div>
 
    <!-- MODAL DETALLE PROVEEDOR -->
-<div id="modalDetalleProveedor" class="modal-overlay">
+<div id="modalDetalleProveedor" class="modal-overlay" style="z-index:99999999;">
     <div class="glass-card w-full max-w-2xl rounded-[2rem] flex flex-col border-2 border-slate-700 overflow-hidden m-4 max-h-[90vh]">
 
         <div class="p-5 border-b border-slate-700 flex justify-between items-center bg-slate-800/50 shrink-0">
@@ -1739,6 +1739,7 @@ GUARDAR PRODUCTO
                 </div>
                 <!-- Tabs -->
                 <div class="flex gap-2">
+                    <button id="tabBtnResumen" onclick="switchStatsTab('resumen')" class="px-5 py-2 rounded-xl font-black text-xs uppercase bg-slate-700 text-slate-300 hover:bg-slate-600 btn-action">Resumen</button>
                     <button id="tabBtnVentas" onclick="switchStatsTab('ventas')" class="px-5 py-2 rounded-xl font-black text-xs uppercase bg-emerald-500 text-black btn-action">Ventas</button>
                     <button id="tabBtnProductos" onclick="switchStatsTab('productos')" class="px-5 py-2 rounded-xl font-black text-xs uppercase bg-slate-700 text-slate-300 hover:bg-slate-600 btn-action">Productos</button>
                 </div>
@@ -1813,6 +1814,56 @@ GUARDAR PRODUCTO
         <p id="statsNoData" class="hidden text-center text-slate-500 font-bold text-xs uppercase py-10">Sin datos para el período seleccionado</p>
 
         <!-- ══ TAB PRODUCTOS ══ -->
+        <!-- TAB RESUMEN -->
+        <div id="tabResumen" class="hidden space-y-5">
+            <!-- Filtros -->
+            <div class="flex flex-wrap gap-2 items-end">
+                <div class="flex flex-col gap-1">
+                    <label class="text-[9px] font-black text-emerald-500 uppercase">Desde</label>
+                    <input type="datetime-local" id="resumenDesde" class="text-xs px-2 py-1.5 rounded-lg" style="background:#0f172a;border:1px solid #334155;color:white;">
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[9px] font-black text-emerald-500 uppercase">Hasta</label>
+                    <input type="datetime-local" id="resumenHasta" class="text-xs px-2 py-1.5 rounded-lg" style="background:#0f172a;border:1px solid #334155;color:white;">
+                </div>
+                <button onclick="renderResumen()" class="px-4 py-2 bg-emerald-500 text-black font-black text-xs rounded-xl hover:bg-emerald-400 btn-action">FILTRAR</button>
+                <button onclick="debugResumen()" class="px-3 py-2 bg-slate-600 hover:bg-slate-500 text-yellow-400 font-black text-[10px] rounded-xl btn-action">🔍 DEBUG</button>
+                <button onclick="resumenSetPeriodo(7)"  class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-black text-[10px] rounded-xl btn-action">7D</button>
+                <button onclick="resumenSetPeriodo(30)" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-black text-[10px] rounded-xl btn-action">30D</button>
+                <button onclick="resumenSetPeriodo(90)" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-black text-[10px] rounded-xl btn-action">90D</button>
+                <div class="flex gap-1 ml-2 border-l border-slate-700 pl-2">
+                    <button id="resumenFiltroBtn_total"    onclick="_resumenFiltro='total';   renderResumen()" class="px-3 py-1.5 rounded-lg font-black text-[10px] uppercase btn-action bg-amber-500 text-black">Total</button>
+                    <button id="resumenFiltroBtn_efectivo" onclick="_resumenFiltro='efectivo';renderResumen()" class="px-3 py-1.5 rounded-lg font-black text-[10px] uppercase btn-action bg-slate-700 text-slate-300 hover:bg-slate-600">Efectivo</button>
+                    <button id="resumenFiltroBtn_credito"  onclick="_resumenFiltro='credito'; renderResumen()" class="px-3 py-1.5 rounded-lg font-black text-[10px] uppercase btn-action bg-slate-700 text-slate-300 hover:bg-slate-600">Crédito</button>
+                </div>
+            </div>
+            <!-- KPIs grilla -->
+            <div id="resumenKpis" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+            <!-- Gráficos -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="glass-card rounded-2xl p-4 border border-slate-700">
+                    <p class="text-[10px] font-black text-white uppercase mb-3">Ingresos vs Egresos</p>
+                    <canvas id="chartResumenIngEgr" height="220"></canvas>
+                </div>
+                <div class="glass-card rounded-2xl p-4 border border-slate-700">
+                    <p class="text-[10px] font-black text-white uppercase mb-3">Efectivo vs Crédito</p>
+                    <canvas id="chartResumenEfCr" height="220"></canvas>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="glass-card rounded-2xl p-4 border border-slate-700">
+                    <p class="text-[10px] font-black text-white uppercase mb-3">Evolución diaria</p>
+                    <canvas id="chartResumenEvolucion" height="220"></canvas>
+                </div>
+                <div class="glass-card rounded-2xl p-4 border border-slate-700">
+                    <p class="text-[10px] font-black text-white uppercase mb-3">Balance</p>
+                    <canvas id="chartResumenBalance" height="220"></canvas>
+                </div>
+            </div>
+            <!-- Tabla detalle -->
+            <div id="resumenTabla" class="glass-card rounded-2xl p-4 border border-slate-700 overflow-x-auto"></div>
+        </div>
+
         <div id="tabProductos" class="hidden space-y-5">
 
             <!-- Filtro fechas -->
@@ -2305,7 +2356,7 @@ class="w-full bg-slate-900 border-2 border-slate-800 p-3 rounded-xl text-white f
     </div>
 
     <!-- MODAL PAGO EGRESO -->
-    <div id="modalPagoEgreso" class="modal-overlay" style="z-index:500;">
+    <div id="modalPagoEgreso" class="modal-overlay" style="z-index:999999999;">
         <div class="glass-card w-full max-w-sm rounded-[2.5rem] flex flex-col border-2 border-red-500/40 overflow-hidden m-4" style="max-height:92vh;">
             <div class="p-5 border-b border-slate-700 flex justify-between items-center bg-slate-800/50 shrink-0">
                 <div class="flex items-center gap-3">
@@ -3187,17 +3238,39 @@ _sheetProductos.forEach(p => {
         // MÓDULO MODAL — Maneja todos los modales con una sola función
         // ============================================================
         function toggleModal(id, show) {
+    // Modales que pueden estar abiertos al mismo tiempo (ej: detalle cliente + pago)
+    const MODALES_COEXISTENTES = [
+        'modalDetalleCliente',
+        'modalPagoVenta',
+        'modalVerificarStock',
+        'modalDetalleProveedor',
+        'modalPagoEgreso'
+    ];
 
-    // cerrar TODOS los modales primero
-    document.querySelectorAll('.modal-overlay').forEach(m => {
-        m.classList.remove('modal-active');
-    });
+    // Si el modal a abrir/cerrar es "coexistente", no cerrar los otros coexistentes
+    if (show && MODALES_COEXISTENTES.includes(id)) {
+        // Solo cerrar los modales NO coexistentes
+        document.querySelectorAll('.modal-overlay').forEach(m => {
+            if (!MODALES_COEXISTENTES.includes(m.id)) {
+                m.classList.remove('modal-active');
+            }
+        });
+    } else if (!show) {
+        // Al cerrar, solo cerrar este modal
+    } else {
+        // Modal normal: cerrar todos
+        document.querySelectorAll('.modal-overlay').forEach(m => {
+            m.classList.remove('modal-active');
+        });
+    }
 
     const el = document.getElementById(id);
     if (!el) return;
 
     if (show) {
         el.classList.add('modal-active');
+    } else {
+        el.classList.remove('modal-active');
     }
 
     try { lucide.createIcons(); } catch(e) {}
@@ -4758,75 +4831,71 @@ function poblarSelectsInv() {
 
         // Convierte cualquier fecha a número YYYYMMDD comparable (sin zona horaria)
         // Convierte CUALQUIER formato a número YYYYMMDDHHmmss para comparar con hora exacta
+        // Convierte un objeto Date a número YYYYMMDDHHmmss usando hora LOCAL del browser
+        function dateToNum(d) {
+            if (!d || isNaN(d)) return null;
+            return parseInt(
+                d.getFullYear() +
+                String(d.getMonth()+1).padStart(2,'0') +
+                String(d.getDate()).padStart(2,'0') +
+                String(d.getHours()).padStart(2,'0') +
+                String(d.getMinutes()).padStart(2,'0') +
+                String(d.getSeconds()).padStart(2,'0')
+            );
+        }
+
         function parseFechaNum(val) {
             if (!val) return null;
 
-            // Si es objeto Date (viene del Sheet o de new Date())
-            if (val instanceof Date) {
-                if (isNaN(val)) return null;
-                return parseInt(
-                    val.getFullYear() +
-                    String(val.getMonth()+1).padStart(2,'0') +
-                    String(val.getDate()).padStart(2,'0') +
-                    String(val.getHours()).padStart(2,'0') +
-                    String(val.getMinutes()).padStart(2,'0') +
-                    String(val.getSeconds()).padStart(2,'0')
-                );
-            }
+            // Si es objeto Date → usar hora local
+            if (val instanceof Date) return dateToNum(val);
 
             const s = String(val).trim();
             if (!s) return null;
 
             let m;
-            // "Tue Dec 16 2025 20:13:57 GMT..." (toString de Date)
-            m = s.match(/(\w{3})\s+(\d{1,2})\s+(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
-            if (m) {
+
+            // ISO con Z o con offset: 2026-03-15T00:52:18.000Z / 2026-03-15T00:52:18-03:00
+            // Estos son UTC → convertir a hora local del browser
+            if (s.endsWith('Z') || /T.*[+-]\d{2}:\d{2}$/.test(s)) {
                 const d = new Date(s);
-                if (!isNaN(d)) return parseInt(
-                    d.getFullYear() +
-                    String(d.getMonth()+1).padStart(2,'0') +
-                    String(d.getDate()).padStart(2,'0') +
-                    String(d.getHours()).padStart(2,'0') +
-                    String(d.getMinutes()).padStart(2,'0') +
-                    String(d.getSeconds()).padStart(2,'0')
-                );
+                return dateToNum(d);
             }
-            // ISO con hora: 2026-02-17T14:30:00
+
+            // ISO con hora SIN zona: 2026-02-17T14:30:00 → tomar literal (ya es local)
             m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
             if (m) return parseInt(m[1]+m[2]+m[3]+m[4]+m[5]+m[6]);
+
             // datetime-local: 2026-02-17T14:30
-            m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+            m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
             if (m) return parseInt(m[1]+m[2]+m[3]+m[4]+m[5]+'00');
+
             // ISO solo fecha: 2026-02-17
             m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
             if (m) return parseInt(m[1]+m[2]+m[3]+'000000');
-            // ISO con Z: 2026-02-17T14:30:00.000Z
-            m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
-            if (m) return parseInt(m[1]+m[2]+m[3]+m[4]+m[5]+m[6]);
+
+            // "Tue Dec 16 2025 20:13:57 GMT..." → usar hora local
+            m = s.match(/(\w{3})\s+(\d{1,2})\s+(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
+            if (m) { const d = new Date(s); return dateToNum(d); }
+
             // DD/MM/YYYY HH:MM:SS
             m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})/);
             if (m) return parseInt(m[3]+m[2].padStart(2,'0')+m[1].padStart(2,'0')+m[4]+m[5]+m[6]);
+
             // DD/MM/YYYY HH:MM
             m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
             if (m) return parseInt(m[3]+m[2].padStart(2,'0')+m[1].padStart(2,'0')+m[4].padStart(2,'0')+m[5]+'00');
+
             // DD/MM/YYYY
             m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
             if (m) return parseInt(m[3]+m[2].padStart(2,'0')+m[1].padStart(2,'0')+'000000');
+
             // Timestamp ms
-            if (/^\d{12,13}$/.test(s)) {
-                const d = new Date(parseInt(s));
-                if (!isNaN(d)) return parseInt(
-                    d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+
-                    String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')+String(d.getSeconds()).padStart(2,'0')
-                );
-            }
-            // Último recurso: dejar que Date() lo parsee
+            if (/^\d{12,13}$/.test(s)) { const d = new Date(parseInt(s)); return dateToNum(d); }
+
+            // Último recurso: dejar que Date() lo parsee → hora local
             const d = new Date(s);
-            if (!isNaN(d)) return parseInt(
-                d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0')+
-                String(d.getHours()).padStart(2,'0')+String(d.getMinutes()).padStart(2,'0')+String(d.getSeconds()).padStart(2,'0')
-            );
-            return null;
+            return dateToNum(d);
         }
 
         // Date → "YYYY-MM-DDTHH:mm:ss" para datetime-local inputs
@@ -5920,16 +5989,28 @@ return;
                         const ticketBtn = v.ticket
                             ? `<button onclick="verTicketVentaDetalle('${v.id}')" style="padding:3px 7px;background:#1e3a5f;color:#93c5fd;border:1px solid #1d4ed8;border-radius:6px;cursor:pointer;font-size:11px;font-weight:900;" title="Ver ticket">🧾</button>`
                             : '';
+                        const idVstr = String(v.id||'').trim();
+                        const idSstr = v.idSheet ? String(v.idSheet).trim() : (idVstr.startsWith('sheet_V_') ? idVstr.replace('sheet_V_','') : idVstr);
                         const itemsHtml = items.map(item => {
-                            const nomProd = (item.cantidad > 1 ? item.cantidad + 'x ' : '') + (item.nombre || '—');
+                            const nomProd  = (item.cantidad > 1 ? item.cantidad + 'x ' : '') + (item.nombre || '—');
                             const subTotal = (parseFloat(item.precio)||0) * (parseFloat(item.cantidad)||1);
+                            const nomUp    = nomProd.trim().toUpperCase();
+                            // yaPagado POR ÍTEM: filtrar por producto
+                            const yaPagadoItem = (_pagoVentasSheet||[])
+                                .filter(p => (String(p.idVenta||p.IDVENTAS||'').trim()===idVstr || String(p.idVenta||p.IDVENTAS||'').trim()===idSstr) && String(p.producto||p.PRODUCTO||'').trim().toUpperCase()===nomUp)
+                                .reduce((a,p)=>a+(parseFloat(p.monto||p.MONTO)||0),0);
+                            const saldoItem = Math.max(0, subTotal - yaPagadoItem);
+                            const pagado    = yaPagadoItem > 0;
                             return `<div class="flex justify-between items-center gap-2 py-1.5 border-t border-slate-800">
-                                <span class="text-[10px] font-bold text-slate-300 flex-1 truncate">📦 ${Utils.escHtml(nomProd)}</span>
+                                <span class="text-[10px] font-bold ${pagado ? 'text-emerald-400 line-through' : 'text-slate-300'} flex-1 truncate">📦 ${Utils.escHtml(nomProd)}</span>
                                 <div class="flex items-center gap-1.5 shrink-0">
-                                    <span class="text-[11px] font-mono text-slate-400">$${Utils.fmt(subTotal)}</span>
-                                    <button onclick="abrirPagoDesdeVenta('${v.id || ''}', '${c.id}', '${nomProd.replace(/'/g,"\\'")}')"
-                                        style="padding:3px 8px;background:#064e3b;color:#34d399;border:1px solid #065f46;border-radius:6px;cursor:pointer;font-size:12px;font-weight:900;line-height:1;"
-                                        title="Registrar pago">💳</button>
+                                    <span class="text-[11px] font-mono ${pagado ? 'text-emerald-400' : 'text-slate-400'}">$${Utils.fmt(saldoItem > 0 ? saldoItem : subTotal)}</span>
+                                    ${saldoItem > 0
+                                        ? `<button onclick="abrirPagoDesdeVenta('${v.id || ''}', '${c.id}', '${nomProd.replace(/'/g,"\\'")}',${subTotal})"
+                                            style="padding:3px 8px;background:#064e3b;color:#34d399;border:1px solid #065f46;border-radius:6px;cursor:pointer;font-size:12px;font-weight:900;line-height:1;"
+                                            title="Registrar pago">💳</button>`
+                                        : `<span style="padding:3px 8px;background:#052e16;color:#4ade80;border-radius:6px;font-size:11px;font-weight:900;">✅</span>`
+                                    }
                                 </div>
                             </div>`;
                         }).join('');
@@ -6080,31 +6161,7 @@ if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 
-        function abrirPagoDesdeVenta(ventaId, clienteId) {
 
-    const c = clientesDB.find(x => x.id === clienteId);
-    if (!c) return;
-
-    const venta = todasLasVentas().find(v => String(v.id || '') === String(ventaId));
-    const deudaVenta = venta ? (parseFloat(venta.deuda) || 0) : 0;
-
-    clienteDetalleId = clienteId;
-
-    const inputFecha = document.getElementById('pagoFecha');
-    const inputMonto = document.getElementById('pagoMonto');
-
-    if (inputFecha) inputFecha.value = new Date().toISOString().slice(0,16);
-    if (inputMonto) inputMonto.value = deudaVenta > 0 ? deudaVenta : '';
-
-    // 🔧 ABRIR MODAL
-    const modal = document.getElementById('modalPagoVenta');
-    if (modal) {
-        modal.classList.remove('hidden');
-        toggleModal('modalPagoVenta', true);
-    }
-
-    mostrarToast(`💳 Deuda de $${Utils.fmt(deudaVenta)} cargada — completá el pago abajo`);
-}
 
         function cerrarDetalleCliente() {
 
@@ -9477,7 +9534,7 @@ renderIngresos();
     return id;
 }
         function abrirPagoEgreso(id) {
-            const r = _sheetEgresos.find(c => String(c.id) === String(id));
+            const r = _sheetEgresos.find(c => String(c.id) === String(id) || String(c.idSheet||'') === String(id));
             if (!r) return;
             _pagoEgresoId = id;
             _pagoEgresoFP = 'EFECTIVO';
@@ -9517,7 +9574,7 @@ renderIngresos();
 
         function confirmarPagoEgreso() {
 
-    const r = _sheetEgresos.find(c => String(c.id) === String(_pagoEgresoId));
+    const r = _sheetEgresos.find(c => String(c.id) === String(_pagoEgresoId) || String(c.idSheet||'') === String(_pagoEgresoId));
     if (!r) return;
 
     const monto = parseFloat(document.getElementById('inputPagoEgresoMonto').value) || 0;
@@ -9530,9 +9587,8 @@ renderIngresos();
     const ahora = new Date();
     const id = Utils.genId();
 
-    const fechaOriginal =
-        ahora.toLocaleDateString('es-AR') + ' ' +
-        ahora.toLocaleTimeString('es-AR',{hour12:false});
+    // FECHA ORIGINAL = fecha del egreso original (no la fecha de hoy)
+    const fechaOriginal = r.fecha || r.fechaISO || r.FECHA || '';
 
     const pago = {
         IDPAGOEGRESOS: id,
@@ -9611,6 +9667,9 @@ renderIngresos();
         // ═══════════════════════════════════════════════════════════════════
         let _pagoVentaId  = null;
         let _pagoVentaFP  = 'EFECTIVO';
+        let _pagoVentaProducto = null;   // ítem entrante (desde botón)
+        let _pagoVentaItemLabel = null;  // ítem confirmado (persiste hasta confirmar pago)
+        let _pagoVentaSubTotal = null;   // subtotal del ítem específico
         let _sheetPagoVentas = [];
         
 
@@ -9626,14 +9685,42 @@ renderIngresos();
             _pagoVentaId = id;
             _pagoVentaFP = 'EFECTIVO';
             const idSheet  = _getIdSheetVenta(r);
-            const yaPagado = _sheetPagoVentas.filter(p => String(p.IDVENTAS) === String(idSheet)).reduce((s,p) => s+(parseFloat(p.MONTO)||0), 0);
+            // yaPagado TOTAL de la venta (para el caso sin ítem específico)
+            const yaPagadoTotal = _sheetPagoVentas.filter(p => String(p.IDVENTAS) === String(idSheet)).reduce((s,p) => s+(parseFloat(p.MONTO)||0), 0);
+            // También revisar _pagoVentasSheet (pagos locales aún no en sheet)
+            const yaPagadoLocal = (_pagoVentasSheet||[]).filter(p => String(p.idVenta||p.IDVENTAS||'') === String(idSheet) || String(p.idVenta||p.IDVENTAS||'') === String(r.id)).reduce((s,p) => s+(parseFloat(p.monto||p.MONTO)||0), 0);
+            const yaPagado = Math.max(yaPagadoTotal, yaPagadoLocal);
             const saldo    = Math.max(0, (r.deuda||0) - yaPagado);
             const prods    = (r.items||[]).map(i => (i.cantidad||1)+'x '+i.nombre).join(', ').substring(0,60);
-            document.getElementById('pagoVentaDesc').textContent      = (r.cliente||'') + (prods ? ' · '+prods : '');
-            document.getElementById('pagoVentaTotal').textContent      = '$' + Utils.fmt(r.deuda||0);
-            document.getElementById('pagoVentaYaPagado').textContent   = '$' + Utils.fmt(yaPagado);
-            document.getElementById('pagoVentaSaldo').textContent      = '$' + Utils.fmt(saldo);
-            document.getElementById('inputPagoVentaMonto').value       = saldo > 0 ? saldo : '';
+            // Si viene de un ítem específico, usar el label y subTotal pasados directamente
+            if (_pagoVentaProducto) {
+                const subTotal = _pagoVentaSubTotal || 0;
+                // yaPagado POR ÍTEM: solo los pagos que referencian este producto específico
+                const nomProdUp = String(_pagoVentaProducto).trim().toUpperCase();
+                const yaPagadoItemSheet = _sheetPagoVentas
+                    .filter(p => String(p.IDVENTAS) === String(idSheet) && String(p.PRODUCTO||'').trim().toUpperCase() === nomProdUp)
+                    .reduce((s,p) => s+(parseFloat(p.MONTO)||0), 0);
+                const yaPagadoItemLocal = (_pagoVentasSheet||[])
+                    .filter(p => (String(p.idVenta||p.IDVENTAS||'') === String(idSheet) || String(p.idVenta||p.IDVENTAS||'') === String(r.id)) && String(p.producto||p.PRODUCTO||'').trim().toUpperCase() === nomProdUp)
+                    .reduce((s,p) => s+(parseFloat(p.monto||p.MONTO)||0), 0);
+                const yaPagadoItem = Math.max(yaPagadoItemSheet, yaPagadoItemLocal);
+                const saldoItem = Math.max(0, subTotal - yaPagadoItem);
+                _pagoVentaItemLabel = _pagoVentaProducto; // persistir hasta confirmarPagoVenta
+                document.getElementById('pagoVentaDesc').textContent    = (r.cliente||'') + ' · ' + _pagoVentaProducto;
+                document.getElementById('pagoVentaTotal').textContent   = '$' + Utils.fmt(subTotal);
+                document.getElementById('pagoVentaYaPagado').textContent= '$' + Utils.fmt(yaPagadoItem);
+                document.getElementById('pagoVentaSaldo').textContent   = '$' + Utils.fmt(saldoItem);
+                document.getElementById('inputPagoVentaMonto').value    = saldoItem > 0 ? saldoItem : '';
+                _pagoVentaProducto = null;
+                _pagoVentaSubTotal = null;
+            } else {
+                _pagoVentaItemLabel = null;
+                document.getElementById('pagoVentaDesc').textContent      = (r.cliente||'') + (prods ? ' · '+prods : '');
+                document.getElementById('pagoVentaTotal').textContent     = '$' + Utils.fmt(r.deuda||0);
+                document.getElementById('pagoVentaYaPagado').textContent  = '$' + Utils.fmt(yaPagado);
+                document.getElementById('pagoVentaSaldo').textContent     = '$' + Utils.fmt(saldo);
+                document.getElementById('inputPagoVentaMonto').value      = saldo > 0 ? saldo : '';
+            }
             selPagoVentaFP('EFECTIVO');
             toggleModal('modalPagoVenta', true);
         }
@@ -9667,10 +9754,10 @@ renderIngresos();
             const id        = Utils.genId();
             const idCliente = String(r.idCliente || r.idSheet || '');
             const items = (r.items||[]).length > 0 ? r.items : [{ nombre: r.producto || '—', proveedor: '' }];
-            // Usar el producto específico que se está pagando (si viene del botón del modal cliente)
-            const productoLabel = _pagoVentaProducto || items.map(i => (i.cantidad > 1 ? i.cantidad + 'x ' : '') + (i.nombre || '—')).join(' | ');
+            // Usar el ítem específico si viene del botón del modal cliente
+            const productoLabel = _pagoVentaItemLabel || items.map(i => (i.cantidad > 1 ? i.cantidad + 'x ' : '') + (i.nombre || '—')).join(' | ');
             const proveedor = items.map(i => i.proveedor||'').filter(Boolean)[0] || '';
-            _pagoVentaProducto = null; // limpiar después de usar
+            _pagoVentaItemLabel = null; // limpiar después de confirmar
 
             // UNA sola fila con el monto que el cliente pagó
             _sheetPagoVentas.push({
@@ -9717,12 +9804,24 @@ renderIngresos();
             renderHistorial();
             renderClientes();
             // Si el detalle de cliente está abierto, refrescarlo
-            if (clienteDetalleId) abrirDetalleCliente(clienteDetalleId);
+            if (clienteDetalleId) {
+                // Debug: verificar saldo después del pago
+                const _rv = todasLasVentas().find(v => v.id === _pagoVentaId);
+                if (_rv) {
+                    const _idS = _getIdSheetVenta(_rv);
+                    const _pagado = (_pagoVentasSheet||[])
+                        .filter(p => String(p.idVenta||p.IDVENTAS||'').trim() === String(_rv.id).trim() ||
+                                     String(p.idVenta||p.IDVENTAS||'').trim() === String(_idS).trim())
+                        .reduce((a,p)=>a+(parseFloat(p.monto||p.MONTO)||0),0);
+                    console.log('[PAGO DBG] deuda:', _rv.deuda, '| pagado:', _pagado, '| saldo:', (_rv.deuda||0)-_pagado, '| id:', _rv.id, '| idSheet:', _idS);
+                }
+                abrirDetalleCliente(clienteDetalleId);
+            }
         }
 
-        let _pagoVentaProducto = null;
-        function abrirPagoDesdeVenta(ventaId, clienteId, producto) {
+        function abrirPagoDesdeVenta(ventaId, clienteId, producto, subTotal) {
             _pagoVentaProducto = producto || null;
+            _pagoVentaSubTotal = subTotal > 0 ? subTotal : null;
             abrirPagoVenta(ventaId);
         }
 
@@ -11687,10 +11786,13 @@ function verDetalleProveedor(tipo, id){
                                 items:     []
                             };
                         }
-                        // Acumular subtotales de cada fila del mismo IDVENTAS
+                        // PAGO TOTAL acumula por ítem (cada fila es el precio del ítem)
                         ventasMap[key].total    += parseSheetNum(row['PAGO TOTAL']   ||row['Pago Total']||0);
-                        ventasMap[key].efectivo += parseSheetNum(row['PAGO EFECTIVO']||row['Pago Efectivo']||0);
-                        ventasMap[key].deuda    += parseSheetNum(row['PAGO CREDITO'] ||row['Pago credito']||row['Pago Credito']||0);
+                        // PAGO EFECTIVO y PAGO CREDITO son de la venta completa — tomar solo de la primera fila
+                        if (ventasMap[key].items.length === 0) {
+                            ventasMap[key].efectivo = parseSheetNum(row['PAGO EFECTIVO']||row['Pago Efectivo']||0);
+                            ventasMap[key].deuda    = parseSheetNum(row['PAGO CREDITO'] ||row['Pago credito']||row['Pago Credito']||0);
+                        }
                         const rawCant = parseSheetNum(row['CANTIDAD']||row['Cantidad']||row['Cantidad Introducida']);
                         ventasMap[key].items.push({
                             nombre:    String(row['PRODUCTO']||row['Producto']||''),
@@ -11705,6 +11807,13 @@ function verDetalleProveedor(tipo, id){
                     });
                     _sheetVentas = Object.values(ventasMap);
                     console.log('✓ Sheet ventas cargadas:', _sheetVentas.length);
+                    // Debug: verificar efectivo en primeras ventas del día actual
+                    const _hoy = new Date(); const _hoyStr = _hoy.getFullYear()+'-'+String(_hoy.getMonth()+1).padStart(2,'0')+'-'+String(_hoy.getDate()).padStart(2,'0');
+                    const _ventasHoy = _sheetVentas.filter(v => (v.fechaISO||v.fecha||'').startsWith(_hoyStr) || parseFechaNum(v.fechaISO||v.fecha||'') >= parseFechaNum(_hoyStr+'T00:00'));
+                    let _sumEfHoy=0, _sumCrHoy=0, _sumTotHoy=0;
+                    _ventasHoy.forEach(v => { _sumEfHoy+=Number(v.efectivo||0); _sumCrHoy+=Number(v.deuda||0); _sumTotHoy+=Number(v.total||0); });
+                    console.log('[VENTAS HOY] count:', _ventasHoy.length, '| total:', _sumTotHoy, '| efectivo:', _sumEfHoy, '| credito:', _sumCrHoy);
+                    if (_ventasHoy[0]) console.log('[VENTA HOY 0]', JSON.stringify({id:_ventasHoy[0].id, total:_ventasHoy[0].total, efectivo:_ventasHoy[0].efectivo, deuda:_ventasHoy[0].deuda, items:(_ventasHoy[0].items||[]).length}));
                     renderHistorialConSheet();
                 }
                 // — Procesar inventario del Sheet —
@@ -12342,11 +12451,11 @@ if (indicator) indicator.classList.remove('hidden');
                         if (_md && !_md.classList.contains('hidden')) abrirDetalleCliente(clienteDetalleId);
                     }
                 }
-                if (Array.isArray(data.pagoCompras))          _sheetPagoCompras         = data.pagoCompras.map(r=>({IDCOMPRAS:String(r['IDCOMPRAS']||'').trim(), MONTO:parseSheetNum(r['MONTO']||0), monto:parseSheetNum(r['MONTO']||0), proveedor:String(r['PROVEEDOR']||r['Proveedor']||'').trim().toUpperCase()}));
-                if (Array.isArray(data.pagoIngresos))         _sheetPagoIngresos        = data.pagoIngresos.map(r=>({IDINGRESOS:String(r['IDINGRESOS']||'').trim(),MONTO:parseSheetNum(r['MONTO']||0)}));
-                if (Array.isArray(data.pagoEgresos))          _sheetPagoEgresos         = data.pagoEgresos.map(r=>({IDEGRESOS:String(r['IDEGRESOS']||'').trim(),MONTO:parseSheetNum(r['MONTO']||0)}));
-                if (Array.isArray(data.pagoIngresosNegocio))  _sheetPagoIngNeg          = data.pagoIngresosNegocio.map(r=>({IDINGRESOSNEGOCIO:String(r['IDINGRESOSNEGOCIO']||'').trim(),MONTO:parseSheetNum(r['MONTO']||0),fechaISO:String(r['FECHA']||'').trim()}));
-                if (Array.isArray(data.pagoEgresosNegocio))   _pagoEgrNegSheet          = data.pagoEgresosNegocio.map(r=>({idEgresoNeg:String(r['IDEGRESOSNEGOCIO']||'').trim(),monto:parseSheetNum(r['MONTO']||0),fecha:String(r['FECHA']||'').trim(),formaPago:String(r['FORMA DE PAGO']||'').trim()})).filter(p=>p.monto>0);
+                if (Array.isArray(data.pagoCompras))          _sheetPagoCompras         = data.pagoCompras.map(r=>({IDCOMPRAS:String(r['IDCOMPRAS']||'').trim(), MONTO:parseSheetNum(r['MONTO']||0), monto:parseSheetNum(r['MONTO']||0), fecha:String(r['FECHA']||r['FECHA ORIGINAL']||'').trim(), proveedor:String(r['PROVEEDOR']||r['Proveedor']||'').trim().toUpperCase()}));
+                if (Array.isArray(data.pagoIngresos))         _sheetPagoIngresos        = data.pagoIngresos.map(r=>({IDINGRESOS:String(r['IDINGRESOS']||'').trim(),MONTO:parseSheetNum(r['MONTO']||0),fecha:String(r['FECHA']||r['FECHA ORIGINAL']||'').trim()}));
+                if (Array.isArray(data.pagoEgresos))          _sheetPagoEgresos         = data.pagoEgresos.map(r=>({IDEGRESOS:String(r['IDEGRESOS']||'').trim(),MONTO:parseSheetNum(r['MONTO']||0),FECHA:String(r['FECHA']||r['FECHA ORIGINAL']||'').trim()}));
+                if (Array.isArray(data.pagoIngresosNegocio))  _sheetPagoIngNeg          = data.pagoIngresosNegocio.map(r=>({IDINGRESOSNEGOCIO:String(r['IDINGRESOSNEGOCIO']||'').trim(),MONTO:parseSheetNum(r['MONTO']||0),fecha:String(r['FECHA']||'').trim(),fechaISO:String(r['FECHA']||'').trim()}));
+                if (Array.isArray(data.pagoEgresosNegocio))   { _pagoEgrNegSheet        = data.pagoEgresosNegocio.map(r=>({idEgresoNeg:String(r['IDEGRESOSNEGOCIO']||'').trim(),monto:parseSheetNum(r['MONTO']||0),fecha:String(r['FECHA']||'').trim(),formaPago:String(r['FORMA DE PAGO']||'').trim()})).filter(p=>p.monto>0); _sheetPagoEgrNeg = _pagoEgrNegSheet; }
                 // Negocio
                 syncIngEgrNeg(data.ingresosNegocio, _sheetIngresosNegocio, saveIngresosNeg, 'ingresosNegocio', _supercatsIngNegSheet, _catsIngNegSheet);
                 syncIngEgrNeg(data.egresosNegocio,  _sheetEgresosNegocio,  saveEgresosNeg,  'egresosNegocio',  _supercatsEgrNegSheet, _catsEgrNegSheet);
@@ -13173,13 +13282,424 @@ console.log("FILTRADAS:", filtradas.length);
         // ══════════════════════════════════════════
         let _statsTab = 'ventas';
 
+
+        // ══════════════════════════════════════════
+        //  ESTADÍSTICAS RESUMEN
+        // ══════════════════════════════════════════
+        let _chartResIngEgr = null, _chartResEfCr = null, _chartResEvol = null, _chartResBal = null;
+
+        function resumenSetPeriodo(dias) {
+            const hasta = new Date();
+            const desde = new Date(); desde.setDate(desde.getDate() - dias);
+            const fmt = d => d.toISOString().slice(0,16);
+            document.getElementById('resumenDesde').value = fmt(desde);
+            document.getElementById('resumenHasta').value = fmt(hasta);
+            renderResumen();
+        }
+
+        let _resumenFiltro = 'total'; // 'total' | 'efectivo' | 'credito'
+
+        function debugResumen() {
+            const desdeVal = document.getElementById('resumenDesde').value;
+            const hastaVal = document.getElementById('resumenHasta').value;
+            const fdNum = desdeVal ? parseFechaNum(desdeVal) : null;
+            const fhNum = hastaVal ? parseFechaNum(hastaVal) : null;
+            console.log('=== RESUMEN DEBUG ===');
+            console.log('Filtro desde:', desdeVal, '→ fnum:', fdNum);
+            console.log('Filtro hasta:', hastaVal, '→ fnum:', fhNum);
+
+            // Ventas
+            const todasV = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
+            let vCnt=0, vTotal=0;
+            todasV.forEach(v => {
+                const fnum = parseFechaNum(v.fechaISO||v.fecha||'');
+                const ok = (!fdNum || fnum >= fdNum) && (!fhNum || fnum <= fhNum);
+                if (ok) { vCnt++; vTotal += Number(v.total||0); }
+            });
+            console.log('Ventas en rango:', vCnt, '| Total:', vTotal);
+            if (todasV[0]) console.log('  Muestra venta[0] fecha raw:', todasV[0].fechaISO||todasV[0].fecha, '| fnum:', parseFechaNum(todasV[0].fechaISO||todasV[0].fecha||''));
+
+            // Pago ventas
+            let pvCnt=0, pvTotal=0;
+            (_pagoVentasSheet||[]).forEach(p => {
+                const fnum = parseFechaNum(p.fecha||p.FECHA||'');
+                const ok = (!fdNum || fnum >= fdNum) && (!fhNum || fnum <= fhNum);
+                if (ok) { pvCnt++; pvTotal += Number(p.monto||p.MONTO||0); }
+            });
+            console.log('Pago Ventas en rango:', pvCnt, '| Total:', pvTotal);
+            if ((_pagoVentasSheet||[])[0]) console.log('  Muestra pagoVenta[0] fecha raw:', _pagoVentasSheet[0].fecha, '| fnum:', parseFechaNum(_pagoVentasSheet[0].fecha||''));
+
+            // Pago ingresos negocio
+            let pinCnt=0, pinTotal=0;
+            (_sheetPagoIngNeg||[]).forEach(p => {
+                const fnum = parseFechaNum(p.fecha||p.FECHA||p.fechaISO||'');
+                const ok = (!fdNum || fnum >= fdNum) && (!fhNum || fnum <= fhNum);
+                if (ok) { pinCnt++; pinTotal += Number(p.monto||p.MONTO||0); }
+                else console.log('  PagoIngNeg FUERA rango:', p.fecha||p.fechaISO, '→ fnum:', fnum);
+            });
+            console.log('Pago IngNeg en rango:', pinCnt, '| Total:', pinTotal);
+            if ((_sheetPagoIngNeg||[])[0]) console.log('  Muestra pagoIngNeg[0]:', JSON.stringify(_sheetPagoIngNeg[0]));
+
+            // Pago compras
+            let pcCnt=0, pcTotal=0;
+            (_sheetPagoCompras||[]).forEach(p => {
+                const fnum = parseFechaNum(p.fecha||p.FECHA||'');
+                const ok = (!fdNum || fnum >= fdNum) && (!fhNum || fnum <= fhNum);
+                if (ok) { pcCnt++; pcTotal += Number(p.monto||p.MONTO||0); }
+            });
+            console.log('Pago Compras en rango:', pcCnt, '| Total:', pcTotal);
+            if ((_sheetPagoCompras||[])[0]) console.log('  Muestra pagoCompra[0]:', JSON.stringify(_sheetPagoCompras[0]));
+
+            // Egresos
+            let eCnt=0, eTotal=0;
+            (_sheetEgresos||[]).forEach(r => {
+                const fnum = parseFechaNum(r.fechaISO||r.fecha||'');
+                const ok = (!fdNum || fnum >= fdNum) && (!fhNum || fnum <= fhNum);
+                if (ok) { eCnt++; eTotal += Number(r.total||0); }
+            });
+            console.log('Egresos en rango:', eCnt, '| Total:', eTotal);
+            if ((_sheetEgresos||[])[0]) console.log('  Muestra egreso[0] fecha raw:', _sheetEgresos[0].fechaISO||_sheetEgresos[0].fecha, '| fnum:', parseFechaNum(_sheetEgresos[0].fechaISO||_sheetEgresos[0].fecha||''));
+
+            // Egresos negocio
+            let enCnt=0, enTotal=0;
+            (_sheetEgresosNegocio||[]).forEach(r => {
+                const fnum = parseFechaNum(r.fechaISO||r.fecha||'');
+                const ok = (!fdNum || fnum >= fdNum) && (!fhNum || fnum <= fhNum);
+                if (ok) { enCnt++; enTotal += Number(r.total||0); }
+            });
+            console.log('EgresosNeg en rango:', enCnt, '| Total:', enTotal);
+            if ((_sheetEgresosNegocio||[])[0]) console.log('  Muestra egrNeg[0]:', JSON.stringify({fecha:_sheetEgresosNegocio[0].fechaISO||_sheetEgresosNegocio[0].fecha, total:_sheetEgresosNegocio[0].total}));
+
+            // Pago egresos
+            let peCnt=0, peTotal=0;
+            (_sheetPagoEgresos||[]).forEach(p => {
+                const fnum = parseFechaNum(p.fecha||p.FECHA||'');
+                const ok = (!fdNum || fnum >= fdNum) && (!fhNum || fnum <= fhNum);
+                if (ok) { peCnt++; peTotal += Number(p.monto||p.MONTO||0); }
+            });
+            console.log('Pago Egresos en rango:', peCnt, '| Total:', peTotal);
+            if ((_sheetPagoEgresos||[])[0]) console.log('  Muestra pagoEgreso[0]:', JSON.stringify(_sheetPagoEgresos[0]));
+
+            console.log('=== FIN RESUMEN DEBUG ===');
+        }
+
+        function renderResumen() {
+            const desdeVal = document.getElementById('resumenDesde').value;
+            const hastaVal = document.getElementById('resumenHasta').value;
+            const fdNum = desdeVal ? parseFechaNum(desdeVal) : null;
+            const fhNum = hastaVal ? parseFechaNum(hastaVal) : null;
+
+            const enRango = fnum => {
+                if (!fnum) return false;
+                if (fdNum && fnum < fdNum) return false;
+                if (fhNum && fnum > fhNum) return false;
+                return true;
+            };
+
+            // ── Ventas ──────────────────────────────────────────────
+            // Sumamos PAGO EFECTIVO / PAGO CREDITO / PAGO TOTAL directo desde
+            // las filas crudas del sheet, una sola vez por IDVENTAS (primera fila).
+            // Esto evita el problema de multiplicación por cantidad de ítems.
+            const ventasCreditoPagadas = new Set();
+            (_pagoVentasSheet||[]).forEach(p => {
+                const idV = String(p.idVenta||p.IDVENTAS||'').trim();
+                if (idV) ventasCreditoPagadas.add(idV);
+            });
+
+            let vTotal=0, vEf=0, vCr=0, vGanTotal=0, vGanEf=0, vGanCr=0, vCnt=0;
+            const _ventasIdVistas = new Set();
+
+            // Usar _sheetVentas (ya agrupadas por IDVENTAS con efectivo de primera fila)
+            const todasV = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
+            todasV.forEach(v => {
+                const fnum = parseFechaNum(v.fechaISO||v.fecha||'');
+                if (!enRango(fnum) || _ventasIdVistas.has(v.id)) return;
+                _ventasIdVistas.add(v.id);
+                const total = Number(v.total||0);
+                const ef    = Number(v.efectivo||0);
+                const cr    = Number(v.deuda||0);
+                const gan   = Number(v.ganancia || (v.items||[]).reduce((s,i)=>s+((Number(i.precio||0)-Number(i.costo||0))*(Number(i.cantidad)||1)),0) || 0);
+                const esPagadoCr = cr > 0 && ventasCreditoPagadas.has(String(v.id));
+
+                if (_resumenFiltro === 'efectivo' && cr > 0 && !esPagadoCr) return;
+                if (_resumenFiltro === 'credito'  && (cr <= 0 || esPagadoCr)) return;
+
+                vTotal += total; vEf += ef; vCr += cr; vGanTotal += gan;
+                if (cr <= 0 || esPagadoCr) vGanEf += gan; else vGanCr += gan;
+                vCnt++;
+            });
+
+            // ── Función genérica para ingresos/egresos con filtro ──
+            const sumFiltrado = (arr, campoFecha, campoTotal, campoEf, campoCr, campoGan) => {
+                let total=0, ef=0, cr=0, gan=0;
+                (arr||[]).forEach(r => {
+                    const fnum = parseFechaNum(r[campoFecha]||r.fechaISO||r.fecha||'');
+                    if (!enRango(fnum)) return;
+                    const rEf = Number(r[campoEf]||0);
+                    const rCr = Number(r[campoCr]||0);
+                    const rTotal = Number(r[campoTotal]||0);
+                    if (_resumenFiltro === 'efectivo' && rCr > 0) return;
+                    if (_resumenFiltro === 'credito'  && rCr <= 0) return;
+                    total += rTotal; ef += rEf; cr += rCr;
+                    if (campoGan) gan += Number(r[campoGan]||0);
+                });
+                return {total, ef, cr, gan};
+            };
+
+            // ── Pago ventas: MONTO = siempre efectivo ──
+            let pvTotal=0;
+            (_pagoVentasSheet||[]).forEach(p => {
+                const fnum = parseFechaNum(p.fecha||p.FECHA||p.fechaOrig||'');
+                if (!enRango(fnum)) return;
+                if (_resumenFiltro === 'credito') return;
+                pvTotal += Number(p.monto||p.MONTO||0);
+            });
+
+            const ing    = sumFiltrado(_sheetIngresos||[],       'fechaISO','total','efectivo','credito','ganancia');
+            const ingNeg = sumFiltrado(_sheetIngresosNegocio||[], 'fechaISO','total','efectivo','credito','ganancia');
+            // Compras: el campo total en _sheetCompras puede ser 'total' o suma de items
+            const comp   = (() => {
+                let total=0,ef=0,cr=0;
+                (_sheetCompras||[]).forEach(r => {
+                    const fnum = parseFechaNum(r.fechaISO||r.fecha||'');
+                    if (!enRango(fnum)) return;
+                    const rEf = Number(r.efectivo||r.pagoEfectivo||0);
+                    const rCr = Number(r.credito||r.pagoCredito||0);
+                    const rT  = Number(r.total||0) || rEf + rCr;
+                    if (_resumenFiltro==='efectivo' && rCr>0) return;
+                    if (_resumenFiltro==='credito'  && rCr<=0) return;
+                    total+=rT; ef+=rEf; cr+=rCr;
+                });
+                return {total,ef,cr};
+            })();
+            const egr    = sumFiltrado(_sheetEgresos||[],         'fechaISO','total','efectivo','credito');
+            const egrNeg = sumFiltrado(_sheetEgresosNegocio||[],  'fechaISO','total','efectivo','credito');
+
+            // Pagos (MONTO = siempre efectivo — son cobros/pagos de deuda)
+            const sumPago = (arr) => {
+                let t=0;
+                (arr||[]).forEach(p => {
+                    const fnum = parseFechaNum(p.fecha||p.FECHA||p.fechaISO||'');
+                    if (!enRango(fnum)) return;
+                    if (_resumenFiltro === 'credito') return;
+                    t += Number(p.monto||p.MONTO||0);
+                });
+                return t;
+            };
+            const piTotal  = sumPago(_sheetPagoIngresos||[]);
+            const pinTotal = sumPago(_sheetPagoIngNeg||[]);
+            const pcTotal  = sumPago(_sheetPagoCompras||[]);
+            const peTotal  = sumPago(_sheetPagoEgresos||[]);
+            const penTotal = sumPago(_pagoEgrNegSheet||_sheetPagoEgrNeg||[]);
+
+            // ── Totales generales ──
+            const totalEntradas = vTotal + ing.total + ingNeg.total;
+            const totalSalidas  = comp.total + egr.total + egrNeg.total;
+            const balance       = totalEntradas - totalSalidas;
+
+            // ── Ganancias totales ──
+            const ganTotal = vGanTotal + ing.gan + ingNeg.gan;
+            const ganEf    = vGanEf;
+            const ganCr    = vGanCr;
+
+            // ── Dinero en efectivo que debería haber en caja ──
+            // Las tablas PAGO* tienen MONTO = siempre efectivo (cobros/pagos de crédito)
+            // Entradas EF = ventas ef + ingresos ef + ingNeg ef + cobros de crédito (pago ventas + pago ingresos + pago ingNeg)
+            // Salidas EF  = compras ef + egresos ef + egrNeg ef + pagos de crédito  (pago compras + pago egresos + pago egrNeg)
+            // Los pagos NO se suman como "vEf/ing.ef" porque son crédito que se cobra/paga después
+            const entEf = vEf + ing.ef + ingNeg.ef + pvTotal + piTotal + pinTotal;
+            const salEf = comp.ef + egr.ef + egrNeg.ef + pcTotal + peTotal + penTotal;
+            const efectivoEnCaja = entEf - salEf;
+
+            // ── Actualizar botones filtro visual ──
+            ['total','efectivo','credito'].forEach(f => {
+                const btn = document.getElementById('resumenFiltroBtn_'+f);
+                if (btn) btn.className = 'px-3 py-1.5 rounded-lg font-black text-[10px] uppercase btn-action ' +
+                    (f === _resumenFiltro ? 'bg-amber-500 text-black' : 'bg-slate-700 text-slate-300 hover:bg-slate-600');
+            });
+
+            const colorMap = {emerald:'#10b981',blue:'#3b82f6',cyan:'#06b6d4',orange:'#f97316',red:'#ef4444',pink:'#ec4899'};
+            const kpiData = [
+                { label:'Ventas',              total:vTotal,       ef:vEf,       cr:vCr,       color:'emerald' },
+                { label:'Pago Ventas',         total:pvTotal,      ef:pvTotal,   cr:0,          color:'emerald' },
+                { label:'Ingresos',            total:ing.total,    ef:ing.ef,    cr:ing.cr,     color:'blue' },
+                { label:'Pago Ingresos',       total:piTotal,      ef:piTotal,   cr:0,          color:'blue' },
+                { label:'Ingresos Negocio',    total:ingNeg.total, ef:ingNeg.ef, cr:ingNeg.cr,  color:'cyan' },
+                { label:'Pago Ing. Negocio',   total:pinTotal,     ef:pinTotal,  cr:0,          color:'cyan' },
+                { label:'Compras',             total:comp.total,   ef:comp.ef,   cr:comp.cr,    color:'orange' },
+                { label:'Pago Compras',        total:pcTotal,      ef:pcTotal,   cr:0,          color:'orange' },
+                { label:'Egresos',             total:egr.total,    ef:egr.ef,    cr:egr.cr,     color:'red' },
+                { label:'Pago Egresos',        total:peTotal,      ef:peTotal,   cr:0,          color:'red' },
+                { label:'Egresos Negocio',     total:egrNeg.total, ef:egrNeg.ef, cr:egrNeg.cr,  color:'pink' },
+                { label:'Pago Egr. Negocio',   total:penTotal,     ef:penTotal,  cr:0,          color:'pink' },
+            ];
+
+            document.getElementById('resumenKpis').innerHTML =
+                // Cards por categoría
+                kpiData.map(k => {
+                    const c = colorMap[k.color]||'#10b981';
+                    return `<div class="glass-card rounded-2xl p-3 border" style="border-color:${c}33;">
+                        <p class="text-[8px] font-black uppercase tracking-widest mb-1" style="color:${c};">${k.label}</p>
+                        <p class="text-lg font-black text-white font-mono">$${Utils.fmt(k.total)}</p>
+                        <div class="flex gap-2 mt-1">
+                            <span class="text-[8px] text-emerald-400 font-bold">EF $${Utils.fmt(k.ef)}</span>
+                            ${k.cr>0?`<span class="text-[8px] text-red-400 font-bold">CR $${Utils.fmt(k.cr)}</span>`:''}
+                        </div>
+                    </div>`;
+                }).join('')
+                // Barra resumen principal
+                + `<div class="glass-card rounded-2xl p-4 border border-amber-500/40 col-span-2 md:col-span-4">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="text-center"><p class="text-[8px] font-black text-emerald-400 uppercase">Total Entradas</p><p class="text-xl font-black text-emerald-400 font-mono">$${Utils.fmt(totalEntradas)}</p></div>
+                        <div class="text-center"><p class="text-[8px] font-black text-red-400 uppercase">Total Salidas</p><p class="text-xl font-black text-red-400 font-mono">$${Utils.fmt(totalSalidas)}</p></div>
+                        <div class="text-center"><p class="text-[8px] font-black text-amber-400 uppercase">Balance</p><p class="text-xl font-black font-mono" style="color:${balance>=0?'#10b981':'#ef4444'}">$${Utils.fmt(balance)}</p></div>
+                        <div class="text-center"><p class="text-[8px] font-black text-slate-400 uppercase">Ventas (cant)</p><p class="text-xl font-black text-white font-mono">${vCnt}</p></div>
+                    </div>
+                </div>`
+                // Ganancias
+                + `<div class="glass-card rounded-2xl p-4 border border-emerald-500/40 col-span-2 md:col-span-4">
+                    <p class="text-[9px] font-black text-emerald-400 uppercase tracking-widest mb-2">💰 Ganancias</p>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="text-center"><p class="text-[8px] font-black text-slate-400 uppercase">Total</p><p class="text-xl font-black text-emerald-400 font-mono">$${Utils.fmt(ganTotal)}</p></div>
+                        <div class="text-center"><p class="text-[8px] font-black text-slate-400 uppercase">Efectivo</p><p class="text-xl font-black text-emerald-400 font-mono">$${Utils.fmt(ganEf)}</p></div>
+                        <div class="text-center"><p class="text-[8px] font-black text-slate-400 uppercase">Crédito</p><p class="text-xl font-black text-amber-400 font-mono">$${Utils.fmt(ganCr)}</p></div>
+                    </div>
+                </div>`
+                // Efectivo en caja
+                + `<div class="glass-card rounded-2xl p-4 border col-span-2 md:col-span-4" style="border-color:${efectivoEnCaja>=0?'#10b98155':'#ef444455'}">
+                    <p class="text-[9px] font-black uppercase tracking-widest mb-2" style="color:${efectivoEnCaja>=0?'#10b981':'#ef4444'}">💵 Efectivo en caja (debería haber)</p>
+                    <div class="grid grid-cols-3 gap-3">
+                        <div class="text-center"><p class="text-[8px] font-black text-emerald-400 uppercase">Entradas EF</p><p class="text-lg font-black text-emerald-400 font-mono">$${Utils.fmt(entEf)}</p></div>
+                        <div class="text-center"><p class="text-[8px] font-black text-red-400 uppercase">Salidas EF</p><p class="text-lg font-black text-red-400 font-mono">$${Utils.fmt(salEf)}</p></div>
+                        <div class="text-center"><p class="text-[8px] font-black uppercase" style="color:${efectivoEnCaja>=0?'#10b981':'#ef4444'}">En Caja</p><p class="text-2xl font-black font-mono" style="color:${efectivoEnCaja>=0?'#10b981':'#ef4444'}">$${Utils.fmt(efectivoEnCaja)}</p></div>
+                    </div>
+                </div>`;
+
+            // ── Gráfico Ingresos vs Egresos ──
+            if (_chartResIngEgr) _chartResIngEgr.destroy();
+            const ctxIE = document.getElementById('chartResumenIngEgr')?.getContext('2d');
+            if (ctxIE) {
+                _chartResIngEgr = new Chart(ctxIE, {
+                    type:'bar',
+                    data:{
+                        labels:['Ventas','Ingresos','Ing.Neg.','Compras','Egresos','Egr.Neg.'],
+                        datasets:[
+                            { label:'Total',    data:[vTotal,ing.total,ingNeg.total,comp.total,egr.total,egrNeg.total],
+                              backgroundColor:['#10b981','#3b82f6','#06b6d4','#f97316','#ef4444','#ec4899'] },
+                            { label:'Efectivo', data:[vEf,ing.ef,ingNeg.ef,comp.ef,egr.ef,egrNeg.ef],
+                              backgroundColor:['#10b98155','#3b82f655','#06b6d455','#f9731655','#ef444455','#ec489955'] }
+                        ]
+                    },
+                    options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8',font:{size:9}}}},
+                        scales:{x:{ticks:{color:'#64748b',font:{size:8}}},y:{ticks:{color:'#64748b',font:{size:8}}}}}
+                });
+            }
+
+            // ── Gráfico Efectivo vs Crédito (doughnut) ──
+            if (_chartResEfCr) _chartResEfCr.destroy();
+            const ctxEfCr = document.getElementById('chartResumenEfCr')?.getContext('2d');
+            const totalEfEntradas = vEf + ing.ef + ingNeg.ef;
+            const totalCrEntradas = vCr + ing.cr + ingNeg.cr;
+            const crPendiente = totalCrEntradas - pvTotal - piTotal - pinTotal;
+            if (ctxEfCr) {
+                _chartResEfCr = new Chart(ctxEfCr, {
+                    type:'doughnut',
+                    data:{
+                        labels:['Efectivo','Crédito cobrado','Crédito pendiente'],
+                        datasets:[{ data:[totalEfEntradas, Math.max(0,pvTotal+piTotal+pinTotal), Math.max(0,crPendiente)],
+                            backgroundColor:['#10b981','#3b82f6','#ef4444'], borderWidth:0 }]
+                    },
+                    options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8',font:{size:9}}}}}
+                });
+            }
+
+            // ── Gráfico evolución diaria ventas ──
+            if (_chartResEvol) _chartResEvol.destroy();
+            const ctxEvol = document.getElementById('chartResumenEvolucion')?.getContext('2d');
+            if (ctxEvol) {
+                const diasV={}, diasEf={};
+                todasV.forEach(v => {
+                    const fnum = parseFechaNum(v.fechaISO||v.fecha||'');
+                    if (!enRango(fnum)) return;
+                    const dia = String(fnum).substring(0,8);
+                    diasV[dia]  = (diasV[dia]||0)  + Number(v.total||0);
+                    diasEf[dia] = (diasEf[dia]||0) + Number(v.efectivo||0);
+                });
+                const dias = Object.keys(diasV).sort();
+                const lbs  = dias.map(d => d.substring(6,8)+'/'+d.substring(4,6));
+                _chartResEvol = new Chart(ctxEvol, {
+                    type:'line',
+                    data:{labels:lbs, datasets:[
+                        { label:'Total',    data:dias.map(d=>diasV[d]),  borderColor:'#10b981', backgroundColor:'#10b98122', fill:true, tension:0.4, pointRadius:2 },
+                        { label:'Efectivo', data:dias.map(d=>diasEf[d]), borderColor:'#3b82f6', backgroundColor:'#3b82f622', fill:true, tension:0.4, pointRadius:2 }
+                    ]},
+                    options:{responsive:true,plugins:{legend:{labels:{color:'#94a3b8',font:{size:9}}}},
+                        scales:{x:{ticks:{color:'#64748b',font:{size:8},maxRotation:45}},y:{ticks:{color:'#64748b',font:{size:8}}}}}
+                });
+            }
+
+            // ── Gráfico Balance ──
+            if (_chartResBal) _chartResBal.destroy();
+            const ctxBal = document.getElementById('chartResumenBalance')?.getContext('2d');
+            if (ctxBal) {
+                _chartResBal = new Chart(ctxBal, {
+                    type:'bar',
+                    data:{
+                        labels:['Entradas','Salidas','Balance','Efectivo Caja'],
+                        datasets:[{ data:[totalEntradas, totalSalidas, Math.abs(balance), Math.abs(efectivoEnCaja)],
+                            backgroundColor:[
+                                '#10b981','#ef4444',
+                                balance>=0?'#f59e0b':'#ef4444',
+                                efectivoEnCaja>=0?'#06b6d4':'#ef4444'
+                            ], borderRadius:6 }]
+                    },
+                    options:{responsive:true,plugins:{legend:{display:false}},
+                        scales:{x:{ticks:{color:'#94a3b8',font:{size:9}}},y:{ticks:{color:'#64748b',font:{size:8}}}}}
+                });
+            }
+
+            // ── Tabla detalle ──
+            document.getElementById('resumenTabla').innerHTML = `
+                <p class="text-[10px] font-black text-white uppercase mb-3">Detalle por categoría</p>
+                <table class="w-full text-[9px]">
+                    <thead><tr class="border-b border-slate-700">
+                        <th class="py-2 text-left text-slate-400 font-black uppercase">Categoría</th>
+                        <th class="py-2 text-right text-slate-400 font-black uppercase">Total</th>
+                        <th class="py-2 text-right text-slate-400 font-black uppercase">Efectivo</th>
+                        <th class="py-2 text-right text-slate-400 font-black uppercase">Crédito</th>
+                    </tr></thead>
+                    <tbody>
+                        ${kpiData.map(k=>`<tr class="border-b border-slate-800 hover:bg-slate-800/50">
+                            <td class="py-2 font-bold text-white">${k.label}</td>
+                            <td class="py-2 text-right font-black text-white font-mono">$${Utils.fmt(k.total)}</td>
+                            <td class="py-2 text-right text-emerald-400 font-mono">$${Utils.fmt(k.ef)}</td>
+                            <td class="py-2 text-right text-red-400 font-mono">${k.cr>0?'$'+Utils.fmt(k.cr):'—'}</td>
+                        </tr>`).join('')}
+                        <tr class="border-t-2 border-amber-500/50 font-black">
+                            <td class="py-2 text-amber-400">GANANCIAS</td>
+                            <td class="py-2 text-right text-amber-400 font-mono">$${Utils.fmt(ganTotal)}</td>
+                            <td class="py-2 text-right text-emerald-400 font-mono">$${Utils.fmt(ganEf)}</td>
+                            <td class="py-2 text-right text-amber-400 font-mono">$${Utils.fmt(ganCr)}</td>
+                        </tr>
+                        <tr class="font-black">
+                            <td class="py-2" style="color:${efectivoEnCaja>=0?'#06b6d4':'#ef4444'}">💵 EFECTIVO EN CAJA</td>
+                            <td class="py-2 text-right font-mono col-span-3" colspan="3" style="color:${efectivoEnCaja>=0?'#06b6d4':'#ef4444'}">$${Utils.fmt(efectivoEnCaja)}</td>
+                        </tr>
+                    </tbody>
+                </table>`;
+        }
+
+
         function switchStatsTab(tab) {
             _statsTab = tab;
-            const isVentas = tab === 'ventas';
+            const isVentas   = tab === 'ventas';
+            const isProductos= tab === 'productos';
+            const isResumen  = tab === 'resumen';
 
             // Tabs visual
-            document.getElementById('tabBtnVentas').className   = 'px-5 py-2 rounded-xl font-black text-xs uppercase btn-action ' + (isVentas ? 'bg-emerald-500 text-black' : 'bg-slate-700 text-slate-300 hover:bg-slate-600');
-            document.getElementById('tabBtnProductos').className = 'px-5 py-2 rounded-xl font-black text-xs uppercase btn-action ' + (!isVentas ? 'bg-blue-500 text-black' : 'bg-slate-700 text-slate-300 hover:bg-slate-600');
+            document.getElementById('tabBtnVentas').className    = 'px-5 py-2 rounded-xl font-black text-xs uppercase btn-action ' + (isVentas    ? 'bg-emerald-500 text-black' : 'bg-slate-700 text-slate-300 hover:bg-slate-600');
+            document.getElementById('tabBtnProductos').className  = 'px-5 py-2 rounded-xl font-black text-xs uppercase btn-action ' + (isProductos ? 'bg-blue-500 text-black'    : 'bg-slate-700 text-slate-300 hover:bg-slate-600');
+            document.getElementById('tabBtnResumen').className    = 'px-5 py-2 rounded-xl font-black text-xs uppercase btn-action ' + (isResumen   ? 'bg-amber-500 text-black'   : 'bg-slate-700 text-slate-300 hover:bg-slate-600');
 
             // Filtros fecha solo en ventas
             const filtros = document.getElementById('statsFiltrosFecha');
@@ -13191,10 +13711,13 @@ console.log("FILTRADAS:", filtradas.length);
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('hidden', !isVentas);
             });
-            const tabProd = document.getElementById('tabProductos');
-            if (tabProd) tabProd.classList.toggle('hidden', isVentas);
+            const tabProd    = document.getElementById('tabProductos');
+            const tabResumen = document.getElementById('tabResumen');
+            if (tabProd)    tabProd.classList.toggle('hidden', !isProductos);
+            if (tabResumen) tabResumen.classList.toggle('hidden', !isResumen);
 
-            if (!isVentas) renderEstadisticasProductos();
+            if (isProductos) renderEstadisticasProductos();
+            if (isResumen)   renderResumen();
         }
 
         // ══════════════════════════════════════════
