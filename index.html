@@ -2920,7 +2920,10 @@ SCAN
                 </div>
                 <div>
                     <h3 id="txtProductoSeleccionado" class="text-xl font-black text-white uppercase italic text-center leading-tight">Producto</h3>
-                    <p id="selectorPrecioRef" class="text-2xl font-black text-emerald-400 mt-2 text-center"></p>
+                    <div class="flex items-center justify-center gap-3 mt-2">
+                        <p id="selectorPrecioRef" class="text-2xl font-black text-emerald-400 text-center"></p>
+                        <p id="selectorStockRef" class="text-sm font-black text-slate-400 text-center"></p>
+                    </div>
                 </div>
             </div>
 
@@ -3071,21 +3074,14 @@ Agregar
 
 <div class="flex flex-col gap-2 text-left">
     <label class="text-[10px] font-black text-emerald-500 uppercase">
-        Fecha y hora de inicio
-    </label>
-    <input type="datetime-local" id="inputHorarioCaja"
-        class="w-full text-sm font-black text-center text-white bg-slate-900 border-2 border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500">
-    <button onclick="document.getElementById('inputHorarioCaja').value=new Date(new Date()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16)"
-        class="text-[9px] text-emerald-400 font-black uppercase hover:text-emerald-300 cursor-pointer bg-transparent border-none">⏱ Usar ahora</button>
-</div>
-
-<div class="flex flex-col gap-2 text-left mt-3">
-    <label class="text-[10px] font-black text-emerald-500 uppercase">
         Monto inicial en caja
     </label>
     <input type="number" id="inputMontoInicialCaja"
         class="w-full text-xl font-black text-center text-white bg-slate-900 border-2 border-slate-700 rounded-xl p-3 outline-none focus:border-emerald-500"
         placeholder="0">
+    <input type="time" id="inputHoraCaja"
+        class="w-full text-sm font-black text-center text-white bg-slate-900 border-2 border-slate-700 rounded-xl p-2 outline-none focus:border-emerald-500">
+    <p id="montoInicialFecha" class="text-[9px] font-black text-slate-500 text-center"></p>
 </div>
 
 <div class="flex flex-col gap-2 text-left mt-3">
@@ -3212,11 +3208,13 @@ let prodPorNombre = new Map();
 let compraActual = [];
 let _pagoEgrNegSheet = [];
 
-let cajaControl = {
-    horaInicio: null,
-    montoInicial: 0,
-    tengoEnCaja: 0
-};
+let cajaControl = (() => {
+    try {
+        const saved = localStorage.getItem('natanael_caja_control');
+        if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return { horaInicio: null, montoInicial: 0, tengoEnCaja: 0 };
+})();
 
 
 
@@ -3500,6 +3498,14 @@ _sheetProductos.forEach(p => {
             document.getElementById('selectorPrecioRef').textContent = esPeso
                 ? `$${Utils.fmt(prod.precio)} / kg`
                 : `$${Utils.fmt(prod.precio)} c/u`;
+            // Stock
+            const stockEl = document.getElementById('selectorStockRef');
+            if (stockEl) {
+                const st = prod.stockCalculado ?? parseFloat(prod.stock) ?? 0;
+                const stColor = st <= 0 ? '#ef4444' : st <= 3 ? '#f59e0b' : '#94a3b8';
+                stockEl.textContent = `Stock: ${st}`;
+                stockEl.style.color = stColor;
+            }
 
             // Mostrar u ocultar tabs de modo
             const tabsEl = document.getElementById('selectorTabs');
@@ -4373,24 +4379,21 @@ totales.egresosNegocio = totalPrestamos - totalPagosPrestamos;
 
             container.innerHTML = rows;
 
-            // Caja
-            const horarioCaja = localStorage.getItem('natanael_horario_caja') || '';
-            let ventasCaja = historial;
-            if (horarioCaja) {
-                const [hh, mm] = horarioCaja.split(':').map(Number);
-                const ahora = new Date();
-                const corte = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate(), hh, mm, 0);
-                ventasCaja = historial.filter(function(v) { return v.fechaISO && new Date(v.fechaISO) >= corte; });
-                const infoEl = document.getElementById('cajaSinceInfo');
-                infoEl.textContent = 'Desde ' + corte.toLocaleString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-                infoEl.classList.remove('hidden');
-            } else {
-                document.getElementById('cajaSinceInfo').classList.add('hidden');
-            }
-            const caja  = ventasCaja.reduce(function(s,v){ return s + (v.efectivo||0); }, 0);
+            // Caja — usa cajaControl y calcularCajaEsperada (incluye sheet + monto inicial)
             const deudas = historial.reduce(function(s,v){ return s + (v.deuda||0); }, 0);
-            document.getElementById('totalCaja').textContent   = '$' + Utils.fmt(caja);
+            const cajaEsperada = (typeof calcularCajaEsperada === 'function') ? calcularCajaEsperada() : 0;
+            document.getElementById('totalCaja').textContent   = '$' + Utils.fmt(cajaEsperada);
             document.getElementById('totalDeudas').textContent = '$' + Utils.fmt(deudas);
+            // Mostrar "Desde..." si hay horaInicio en cajaControl
+            const infoEl = document.getElementById('cajaSinceInfo');
+            if (infoEl) {
+                if (cajaControl && cajaControl.horaInicio) {
+                    infoEl.textContent = 'Desde ' + new Date(cajaControl.horaInicio).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+                    infoEl.classList.remove('hidden');
+                } else {
+                    infoEl.classList.add('hidden');
+                }
+            }
         }
 
         // Acción directa por índice — sin modales, sin data-attributes
@@ -10344,46 +10347,71 @@ const idCliente = cli ? (cli.id || cli.idSheet || '') : '';
         // ============================================================
         function abrirModalHorarioCaja() {
             const ctrl = cajaControl || {};
-            document.getElementById('inputHorarioCaja').value = ctrl.horaInicio || '';
             document.getElementById('inputMontoInicialCaja').value = ctrl.montoInicial || '';
             document.getElementById('inputTengoEnCaja').value = ctrl.tengoEnCaja || '';
+            // Precargar hora guardada, o la hora actual si no hay
+            const horaEl = document.getElementById('inputHoraCaja');
+            if (horaEl) {
+                if (ctrl.horaInicio) {
+                    const d = new Date(ctrl.horaInicio);
+                    horaEl.value = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+                } else {
+                    const ahora = new Date();
+                    horaEl.value = String(ahora.getHours()).padStart(2,'0') + ':' + String(ahora.getMinutes()).padStart(2,'0');
+                }
+            }
+            const fechaEl = document.getElementById('montoInicialFecha');
+            if (fechaEl) {
+                fechaEl.textContent = ctrl.horaInicio
+                    ? '📅 ' + new Date(ctrl.horaInicio).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'})
+                    : '';
+            }
             toggleModal('modalHorarioCaja', true);
         }
 
         function guardarHorarioCaja() {
-
-    const inputHora = document.getElementById('inputHorarioCaja');
     const inputMonto = document.getElementById('inputMontoInicialCaja');
     const inputTengo = document.getElementById('inputTengoEnCaja');
-
-    const fechaHora = inputHora ? inputHora.value : null;
+    const inputHora  = document.getElementById('inputHoraCaja');
     const montoInicial = inputMonto ? parseFloat(inputMonto.value) || 0 : 0;
-    const tengoEnCaja = inputTengo ? parseFloat(inputTengo.value) || 0 : 0;
+    const tengoEnCaja  = inputTengo ? parseFloat(inputTengo.value) || 0 : 0;
+    const horaElegida  = inputHora ? inputHora.value : '';
 
-    if (!fechaHora) {
-        mostrarToast('Seleccioná fecha y hora', 'error');
-        return;
+    // Armar fecha = hoy + hora elegida en hora LOCAL (sin conversión UTC)
+    const hoy = new Date();
+    let fechaBase;
+    if (horaElegida) {
+        const [h, m] = horaElegida.split(':').map(Number);
+        fechaBase = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate(), h, m, 0);
+    } else {
+        fechaBase = hoy;
     }
+    // Guardar como ISO local (no UTC) para que el filtro compare correctamente
+    const pad = n => String(n).padStart(2,'0');
+    const fechaHora = fechaBase.getFullYear() + '-' + pad(fechaBase.getMonth()+1) + '-' + pad(fechaBase.getDate()) +
+                      'T' + pad(fechaBase.getHours()) + ':' + pad(fechaBase.getMinutes()) + ':00';
 
-    cajaControl.horaInicio = fechaHora;
+    // Solo actualizar fecha si el monto cambió o no había uno guardado
+    const montoAnterior = parseFloat(cajaControl.montoInicial) || 0;
+    const montoChanged  = montoInicial !== montoAnterior || !cajaControl.horaInicio;
+
+    cajaControl.horaInicio   = fechaHora;
     cajaControl.montoInicial = montoInicial;
-    cajaControl.tengoEnCaja = tengoEnCaja;
-
+    cajaControl.tengoEnCaja  = tengoEnCaja;
     localStorage.setItem('natanael_caja_control', JSON.stringify(cajaControl));
 
-    // Actualizar el "Desde..." en el widget
+    // Actualizar fecha mostrada
+    const fechaEl = document.getElementById('montoInicialFecha');
+    if (fechaEl) fechaEl.textContent = '📅 ' + fechaBase.toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'});
     const infoEl = document.getElementById('cajaSinceInfo');
     if (infoEl) {
-        const d = new Date(fechaHora);
-        infoEl.textContent = 'Desde ' + d.toLocaleString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+        infoEl.textContent = 'Desde ' + fechaBase.toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
         infoEl.classList.remove('hidden');
     }
 
     actualizarResumenCaja();
-
     toggleModal('modalHorarioCaja', false);
-
-    mostrarToast('✓ Caja desde ' + new Date(fechaHora).toLocaleString('es-AR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}));
+    mostrarToast('✓ Caja $' + Utils.fmt(montoInicial) + ' desde ' + fechaBase.toLocaleString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}));
 }
 
 function actualizarResumenCaja() {
@@ -10399,11 +10427,13 @@ function actualizarResumenCaja() {
 function calcularCajaEsperada() {
     if (!cajaControl) return 0;
 
-    const desde = cajaControl.horaInicio ? new Date(cajaControl.horaInicio) : null;
+    const desde = cajaControl.horaInicio || null;
+    const desdeTs = desde ? new Date(desde).getTime() : null;
     const despues = item => {
-        if (!desde) return true;
-        const f = item.fechaISO || item.fecha || '';
-        return f && new Date(f) >= desde;
+        if (!desdeTs) return true;
+        const f = String(item.fechaISO || item.fecha || '').trim();
+        if (!f) return false;
+        return new Date(f).getTime() >= desdeTs;
     };
 
     // ENTRADAS en efectivo
@@ -10416,15 +10446,41 @@ function calcularCajaEsperada() {
 
     // SALIDAS en efectivo
     const comprasEf    = (_sheetCompras||[]).filter(despues).reduce((s,c)=> s+(Number(c.efectivo)||Number(c.pagoEfectivo)||0), 0);
-    const egresosEf    = (_sheetEgresos||[]).filter(despues).reduce((s,e)=> s+(Number(e.efectivo)||Number(e.pagoEfectivo)||0), 0);
-    const egrNegEf     = (_sheetEgresosNegocio||[]).filter(despues).reduce((s,e)=> s+(Number(e.efectivo)||Number(e.pagoEfectivo)||0), 0);
+    const _egresosEnRango = (_sheetEgresos||[]).filter(despues);
+    const egresosEf    = _egresosEnRango.reduce((s,e)=> s+(Number(e.efectivo)||Number(e.pagoEfectivo)||0), 0);
+    const _egrNegEnRango = (_sheetEgresosNegocio||[]).filter(despues);
+    const egrNegEf     = _egrNegEnRango.reduce((s,e)=> s+(Number(e.efectivo)||Number(e.pagoEfectivo)||0), 0);
     const pagoCompEf   = (_sheetPagoCompras||[]).filter(despues).reduce((s,p)=> s+(Number(p.monto)||Number(p.MONTO)||0), 0);
     const pagoEgrEf    = (_sheetPagoEgresos||[]).filter(despues).reduce((s,p)=> s+(Number(p.monto)||Number(p.MONTO)||0), 0);
     const pagoEgrNegEf = (_sheetPagoEgrNeg||[]).filter(despues).reduce((s,p)=> s+(Number(p.monto)||Number(p.MONTO)||0), 0);
+    if (_egresosEnRango.length > 0) console.log('⚠️ EGRESOS en rango:', _egresosEnRango.map(e=>({fecha:e.fechaISO||e.fecha, ef:e.efectivo, concepto:e.concepto||e.proveedor})));
+    if (_egrNegEnRango.length > 0) console.log('⚠️ EGRESOS NEGOCIO en rango:', _egrNegEnRango.map(e=>({fecha:e.fechaISO||e.fecha, ef:e.efectivo, concepto:e.concepto||e.proveedor||e.cliente})));
 
     const entradas = ventasEf + ingresosEf + ingNegEf + pagoVentasEf + pagoIngEf + pagoIngNegEf;
     const salidas  = comprasEf + egresosEf + egrNegEf + pagoCompEf + pagoEgrEf + pagoEgrNegEf;
     const inicial  = parseFloat(cajaControl.montoInicial) || 0;
+
+    console.group('%c💵 CAJA ESPERADA', 'color:#10b981;font-weight:900;font-size:13px;');
+    console.log('Desde:', desde ? desde.toLocaleString('es-AR') : 'sin filtro');
+    console.log('Monto inicial:', inicial);
+    console.log('── ENTRADAS ──');
+    console.log('  ventasEf:    ', ventasEf,     '| ventas en rango:', (_sheetVentas||[]).filter(despues).length);
+    console.log('  ingresosEf:  ', ingresosEf);
+    console.log('  ingNegEf:    ', ingNegEf);
+    console.log('  pagoVentasEf:', pagoVentasEf);
+    console.log('  pagoIngEf:   ', pagoIngEf);
+    console.log('  pagoIngNegEf:', pagoIngNegEf);
+    console.log('  TOTAL ENT:   ', entradas);
+    console.log('── SALIDAS ──');
+    console.log('  comprasEf:   ', comprasEf);
+    console.log('  egresosEf:   ', egresosEf);
+    console.log('  egrNegEf:    ', egrNegEf);
+    console.log('  pagoCompEf:  ', pagoCompEf);
+    console.log('  pagoEgrEf:   ', pagoEgrEf);
+    console.log('  pagoEgrNegEf:', pagoEgrNegEf);
+    console.log('  TOTAL SAL:   ', salidas);
+    console.log('RESULTADO: ', inicial, '+', entradas, '-', salidas, '=', inicial + entradas - salidas);
+    console.groupEnd();
 
     return inicial + entradas - salidas;
 }
@@ -12476,6 +12532,8 @@ if (indicator) indicator.classList.remove('hidden');
                 const _vcl = document.getElementById('vistaClientes');
                 if (_vcl && !_vcl.classList.contains('hidden')) renderClientes();
                 console.log('✓ Datos secundarios procesados');
+                // Recalcular caja ahora que tenemos todos los datos (egresos, pagos, etc.)
+                actualizarResumenCaja();
             } catch(e) {
                 console.error('Error procesando datos secundarios:', e);
             }
@@ -12500,6 +12558,8 @@ if (indicator) indicator.classList.remove('hidden');
     if (_provSel) setTimeout(() => renderStockProveedor(), 0);
 
     _renderHistorialData(historial);
+    // Recalcular caja con los nuevos datos de ventas
+    if (typeof actualizarResumenCaja === 'function') actualizarResumenCaja();
 }
 
 
