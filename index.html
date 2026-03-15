@@ -1866,20 +1866,6 @@ GUARDAR PRODUCTO
 
         <div id="tabProductos" class="hidden space-y-5">
 
-            <!-- Filtro fechas -->
-            <div class="glass-card rounded-2xl p-4 border border-slate-700 flex flex-wrap gap-3 items-end">
-                <div class="flex flex-col gap-1">
-                    <label class="text-[9px] font-black text-emerald-500 uppercase">Desde</label>
-                    <input type="datetime-local" id="prodDesde" onchange="renderEstadisticasProductos()" class="text-xs px-2 py-1.5 rounded-lg" style="background:#0f172a;border:1px solid #334155;color:white;">
-                </div>
-                <div class="flex flex-col gap-1">
-                    <label class="text-[9px] font-black text-emerald-500 uppercase">Hasta</label>
-                    <input type="datetime-local" id="prodHasta" onchange="renderEstadisticasProductos()" class="text-xs px-2 py-1.5 rounded-lg" style="background:#0f172a;border:1px solid #334155;color:white;">
-                </div>
-                <button onclick="document.getElementById('prodDesde').value='';document.getElementById('prodHasta').value='';renderEstadisticasProductos();"
-                    class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase" style="background:#334155;color:#94a3b8;">Limpiar</button>
-            </div>
-
             <!-- STOCK POR PROVEEDOR -->
             <div class="glass-card rounded-2xl p-4 border border-blue-500/20">
                 <div class="flex flex-wrap items-center gap-3 mb-4">
@@ -1926,27 +1912,53 @@ GUARDAR PRODUCTO
                 <p id="tablaStockProveedorPlaceholder" class="text-center text-slate-500 text-[10px] py-6">Elegí un proveedor para ver el detalle</p>
             </div>
 
-            <!-- TOP MÁS VENDIDOS -->
+            <!-- VENTAS POR PRODUCTO -->
             <div class="glass-card rounded-2xl p-4 border border-emerald-500/20">
-                <h3 class="text-xs font-black text-emerald-400 uppercase tracking-widest mb-4">🏆 Productos Más Vendidos</h3>
-                <canvas id="pChartMasVendidos" height="260"></canvas>
-            </div>
-
-            <!-- TABLA RANKING -->
-            <div class="glass-card rounded-2xl p-4 border border-slate-700">
-                <h3 class="text-xs font-black text-white uppercase tracking-widest mb-3">📋 Ranking — Más Vendidos</h3>
+                <div class="flex flex-wrap items-center gap-3 mb-4">
+                    <h3 class="text-xs font-black text-emerald-400 uppercase tracking-widest flex-1">🏆 Ventas por Producto</h3>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[9px] font-black text-emerald-500 uppercase">Desde</label>
+                        <input type="datetime-local" id="ventasProdDesde" onchange="renderVentasPorProducto()"
+                            class="text-[10px] px-2 py-1.5 rounded-lg"
+                            style="background:#0f172a;border:1px solid #334155;color:white;">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[9px] font-black text-emerald-500 uppercase">Hasta</label>
+                        <input type="datetime-local" id="ventasProdHasta" onchange="renderVentasPorProducto()"
+                            class="text-[10px] px-2 py-1.5 rounded-lg"
+                            style="background:#0f172a;border:1px solid #334155;color:white;">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[9px] font-black text-slate-500 uppercase">Proveedor</label>
+                        <select id="filtroProveedorVentas" onchange="renderVentasPorProducto()"
+                            class="text-[10px] px-3 py-1.5 rounded-lg font-bold"
+                            style="background:#0f172a;border:1px solid #334155;color:white;min-width:180px;">
+                            <option value="">— Todos —</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-[9px] font-black text-slate-500 uppercase">&nbsp;</label>
+                        <button onclick="document.getElementById('ventasProdDesde').value='';document.getElementById('ventasProdHasta').value='';renderVentasPorProducto();"
+                            class="text-[10px] font-black uppercase px-3 py-1.5 rounded-lg"
+                            style="background:#334155;color:#94a3b8;">Limpiar</button>
+                    </div>
+                </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-[10px]">
                         <thead>
                             <tr class="border-b border-slate-700">
                                 <th class="py-2 pr-3 text-left text-slate-400 font-black">#</th>
                                 <th class="py-2 pr-3 text-left text-slate-400 font-black">PRODUCTO</th>
-                                <th class="py-2 pr-3 text-right text-slate-400 font-black">UNIDADES</th>
-                                <th class="py-2 pr-3 text-right text-slate-400 font-black">INGRESOS</th>
-                                <th class="py-2 text-right text-slate-400 font-black">GANANCIA</th>
+                                <th class="py-2 pr-3 text-left text-slate-400 font-black">PROVEEDOR</th>
+                                <th class="py-2 pr-3 text-right text-slate-400 font-black">VENDIDO</th>
+                                <th class="py-2 pr-3 text-right text-slate-400 font-black">STOCK ACTUAL</th>
+                                <th class="py-2 pr-3 text-right text-slate-400 font-black">DIFERENCIA</th>
+                                <th class="py-2 text-right text-slate-400 font-black">A REPONER</th>
                             </tr>
                         </thead>
-                        <tbody id="tablaMasVendidosBody" class="divide-y divide-slate-800"></tbody>
+                        <tbody id="tablaVentasProductoBody" class="divide-y divide-slate-800">
+                            <tr><td colspan="7" class="py-6 text-center text-slate-500 font-bold uppercase">Aplicá un filtro de fechas para ver resultados</td></tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -13428,7 +13440,9 @@ console.log("FILTRADAS:", filtradas.length);
                 const cr    = Number(v.deuda||0);
                 const costoVenta  = (v.items||[]).reduce((s,i)=>(s + (Number(i.costo||0) * (Number(i.cantidad)||1))), 0);
                 const dineroRecup = (v.items||[]).reduce((s,i)=>s+Number(i.dineroRecuperado||0), 0) || costoVenta;
-                const ganBruta    = Math.max(0, total - dineroRecup);
+                // Clientes especiales (ERROR VENTA, CASA ERAZO) → ganancia siempre 0
+                const esClienteEsp = ['ERROR VENTA','ERROR VENTAS','CASA ERAZO'].includes(String(v.cliente||'').toUpperCase().trim());
+                const ganBruta    = esClienteEsp ? 0 : Math.max(0, total - dineroRecup);
                 const esPagadoCr  = cr > 0 && ventasCreditoPagadas.has(String(v.id));
                 const pagosVenta  = _pagosPorVenta[String(v.id)] || 0;
                 const cobradoEf   = ef + pagosVenta;
@@ -13856,69 +13870,8 @@ console.log("FILTRADAS:", filtradas.length);
         // ══════════════════════════════════════════
         //  ESTADÍSTICAS DE PRODUCTOS
         // ══════════════════════════════════════════
-                function renderEstadisticasProductos() {
-            const desde = document.getElementById('prodDesde').value;
-            const hasta = document.getElementById('prodHasta').value;
-
-            // Unir ventas locales + sheet sin duplicar
-            const todasV = [
-                ...historial,
-                ...(_sheetVentas||[]).filter(v => !historial.some(h => h.id === v.id))
-            ];
-
-            // Filtrar por fecha y acumular por producto
-            const ventasPorProd = {};
-            const ingresosPorProd = {};
-            const gananciaPorProd = {};
-
-            todasV.forEach(v => {
-                const fn = parseFechaNum(v.fechaISO || v.fecha);
-                if (!fn) return;
-                const fd = desde ? parseFechaNum(desde) : null;
-                const fh = hasta ? parseFechaNum(hasta) : null;
-                if (fd && fn < fd) return;
-                if (fh && fn > fh) return;
-                (v.items || []).forEach(it => {
-                    const nom = String(it.nombre||'').trim().toUpperCase();
-                    if (!nom) return;
-                    const qty = parseFloat(it.cantidad) || 0;
-                    const precio = parseFloat(it.precio) || 0;
-                    const costo  = parseFloat(it.costo)  || 0;
-                    ventasPorProd[nom]   = (ventasPorProd[nom]   || 0) + qty;
-                    ingresosPorProd[nom] = (ingresosPorProd[nom] || 0) + precio * qty;
-                    gananciaPorProd[nom] = (gananciaPorProd[nom] || 0) + (precio - costo) * qty;
-                });
-            });
-
-            const top20 = Object.entries(ventasPorProd)
-                .sort((a,b) => b[1]-a[1]).slice(0,20);
-
-            // Gráfico
-            statsChart('pChartMasVendidos', 'bar',
-                top20.map(x => x[0].length>22 ? x[0].substring(0,22)+'…' : x[0]),
-                [{ label:'Unidades', data: top20.map(x=>x[1]),
-                   backgroundColor:'rgba(16,185,129,0.75)', borderColor:'#10b981',
-                   borderWidth:1, borderRadius:4 }],
-                { indexAxis:'y' }
-            );
-
-            // Tabla
-            const tbody = document.getElementById('tablaMasVendidosBody');
-            if (!tbody) return;
-            tbody.innerHTML = top20.length ? top20.map(([nom, qty], i) => {
-                const ing = Math.round(ingresosPorProd[nom]||0);
-                const gan = Math.round(gananciaPorProd[nom]||0);
-                const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`;
-                return `<tr class="hover:bg-slate-800/50">
-                    <td class="py-2 pr-2 font-black text-slate-400">${medal}</td>
-                    <td class="py-2 pr-2 font-bold text-white">${nom.length>30?nom.substring(0,30)+'…':nom}</td>
-                    <td class="py-2 pr-2 text-right font-black text-white">${Utils.fmt(qty)}</td>
-                    <td class="py-2 pr-2 text-right text-blue-400">$${Utils.fmt(ing)}</td>
-                    <td class="py-2 text-right ${gan>=0?'text-emerald-400':'text-red-400'} font-black">$${Utils.fmt(gan)}</td>
-                </tr>`;
-            }).join('') : '<tr><td colspan="5" class="py-6 text-center text-slate-500">Sin datos de ventas</td></tr>';
-
-            // Poblar select proveedor
+        function renderEstadisticasProductos() {
+            // Poblar select proveedor (stock por proveedor)
             const selProv = document.getElementById('filtroProveedorStat');
             if (selProv) {
                 const proveedores = [...new Set(
@@ -13930,6 +13883,17 @@ console.log("FILTRADAS:", filtradas.length);
                 if (prevProv) renderStockProveedor();
             }
 
+            // Poblar select proveedor (ventas por producto)
+            const selProvV = document.getElementById('filtroProveedorVentas');
+            if (selProvV) {
+                const proveedores = [...new Set(
+                    _sheetProductos.map(p => String(p.proveedor||'').trim()).filter(Boolean)
+                )].sort();
+                const prevProv = selProvV.value;
+                selProvV.innerHTML = '<option value="">— Todos los proveedores —</option>' +
+                    proveedores.map(pr => `<option value="${pr}" ${pr===prevProv?'selected':''}>${pr}</option>`).join('');
+            }
+
             // Poblar select kardex
             const sel = document.getElementById('kardexProducto');
             const prev = sel.value;
@@ -13938,6 +13902,74 @@ console.log("FILTRADAS:", filtradas.length);
                     .map(p=>`<option value="${Utils.escHtml(p.nombre)}" ${p.nombre===prev?'selected':''}>${Utils.escHtml(p.nombre)}</option>`)
                     .join('');
             if (prev) renderKardex();
+
+            renderVentasPorProducto();
+        }
+
+        function renderVentasPorProducto() {
+            const desde = document.getElementById('ventasProdDesde').value;
+            const hasta = document.getElementById('ventasProdHasta').value;
+            const provFiltro = (document.getElementById('filtroProveedorVentas')?.value || '').trim().toUpperCase();
+            const tbody = document.getElementById('tablaVentasProductoBody');
+            if (!tbody) return;
+
+            const fd = desde ? parseFechaNum(desde) : null;
+            const fh = hasta ? parseFechaNum(hasta) : null;
+
+            // Acumular ventas por nombre de producto
+            const todasV = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
+            const ventasMap = {}; // nombreUp → { cantidad, proveedor }
+            todasV.forEach(v => {
+                const fn = parseFechaNum(v.fechaISO||v.fecha);
+                if (!fn) return;
+                if (fd && fn < fd) return;
+                if (fh && fn > fh) return;
+                (v.items||[]).forEach(it => {
+                    const nom = String(it.nombre||'').trim().toUpperCase();
+                    if (!nom) return;
+                    if (!ventasMap[nom]) ventasMap[nom] = { cantidad: 0, proveedor: String(it.proveedor||'').trim() };
+                    ventasMap[nom].cantidad += parseFloat(it.cantidad)||0;
+                    if (!ventasMap[nom].proveedor && it.proveedor) ventasMap[nom].proveedor = String(it.proveedor).trim();
+                });
+            });
+
+            // Buscar stock actual desde _sheetProductos
+            const prodPorNombre = {};
+            _sheetProductos.forEach(p => { prodPorNombre[String(p.nombre||'').trim().toUpperCase()] = p; });
+
+            // Filtrar por proveedor si aplica y solo mostrar los que tienen ventas
+            let filas = Object.entries(ventasMap)
+                .map(([nom, d]) => {
+                    const prod = prodPorNombre[nom];
+                    const prov = prod ? String(prod.proveedor||'').trim() : d.proveedor;
+                    if (provFiltro && prov.toUpperCase() !== provFiltro) return null;
+                    const stock = prod ? (prod.stockCalculado ?? parseFloat(prod.stock) ?? 0) : 0;
+                    const diff  = stock - d.cantidad;
+                    return { nom, cantidad: d.cantidad, prov, stock, diff };
+                })
+                .filter(Boolean)
+                .sort((a,b) => b.cantidad - a.cantidad);
+
+            if (!filas.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-500 font-bold uppercase">Sin ventas en el período</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filas.map((f, i) => {
+                const diffColor = f.diff >= 0 ? 'text-emerald-400' : 'text-red-400';
+                const reponerColor = f.diff < 0 ? 'text-red-400 font-black' : 'text-slate-500';
+                const reponer = f.diff < 0 ? Math.abs(f.diff) : 0;
+                const medal = i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}`;
+                return `<tr class="hover:bg-slate-800/50 border-b border-slate-800">
+                    <td class="py-2 pr-2 font-black text-slate-400">${medal}</td>
+                    <td class="py-2 pr-2 font-bold text-white">${f.nom.length>30?f.nom.substring(0,30)+'…':f.nom}</td>
+                    <td class="py-2 pr-2 text-slate-400">${f.prov||'—'}</td>
+                    <td class="py-2 pr-2 text-right font-black text-orange-400">${Utils.fmt(f.cantidad)}</td>
+                    <td class="py-2 pr-2 text-right font-black text-blue-400">${Utils.fmt(f.stock)}</td>
+                    <td class="py-2 pr-2 text-right font-black ${diffColor}">${f.diff>=0?'+':''}${Utils.fmt(f.diff)}</td>
+                    <td class="py-2 text-right ${reponerColor}">${reponer>0?'⚠️ '+Utils.fmt(reponer):'✓'}</td>
+                </tr>`;
+            }).join('');
         }
 
         function renderKardex() {
