@@ -11795,14 +11795,15 @@ function verDetalleProveedor(tipo, id){
                         ventasMap[key].deuda    += _rowCr;
                         const rawCant = parseSheetNum(row['CANTIDAD']||row['Cantidad']||row['Cantidad Introducida']);
                         ventasMap[key].items.push({
-                            nombre:    String(row['PRODUCTO']||row['Producto']||''),
-                            cantidad:  rawCant > 0 ? rawCant : 0,
-                            precio:    parseSheetNum(row['PRECIO DE VENTA']||row['Precio de Venta']),
-                            tipoVenta: String(row['TIPO DE VENTA']||row['Tipo de Venta']||''),
-                            proveedor: String(row['PROVEEDOR']||row['Proveedor']||''),
-                            categoria: String(row['Categoria']||''),
-                            depto:     String(row['Departamento']||''),
-                            costo:     parseFloat(row['Precio Costo'])||0
+                            nombre:           String(row['PRODUCTO']||row['Producto']||''),
+                            cantidad:         rawCant > 0 ? rawCant : 0,
+                            precio:           parseSheetNum(row['PRECIO DE VENTA']||row['Precio de Venta']),
+                            tipoVenta:        String(row['TIPO DE VENTA']||row['Tipo de Venta']||''),
+                            proveedor:        String(row['PROVEEDOR']||row['Proveedor']||''),
+                            categoria:        String(row['Categoria']||''),
+                            depto:            String(row['Departamento']||''),
+                            costo:            parseFloat(row['Precio Costo'])||0,
+                            dineroRecuperado: parseSheetNum(row['DINERO RECUPERADO']||row['Dinero Recuperado']||0)
                         });
                     });
                     _sheetVentas = Object.values(ventasMap);
@@ -13429,25 +13430,24 @@ console.log("FILTRADAS:", filtradas.length);
                 const total = Number(v.total||0);
                 const ef    = Number(v.efectivo||0);
                 const cr    = Number(v.deuda||0);
-                const costoVenta = (v.items||[]).reduce((s,i)=>(s + (Number(i.costo||0) * (Number(i.cantidad)||1))), 0);
-                const ganBruta   = Number(v.ganancia || (v.items||[]).reduce((s,i)=>s+((Number(i.precio||0)-Number(i.costo||0))*(Number(i.cantidad)||1)),0) || 0);
-                const esPagadoCr = cr > 0 && ventasCreditoPagadas.has(String(v.id));
-                // Pagos de crédito ya cobrados para esta venta (en rango)
-                const pagosVenta = _pagosPorVenta[String(v.id)] || 0;
-                // Ganancia efectivo según fórmula: si (ef + pagosVenta) > costoVenta → ef + pagosVenta - costoVenta, sino 0
-                const cobradoEf  = ef + pagosVenta;
-                const ganEfVenta = cobradoEf > costoVenta ? cobradoEf - costoVenta : 0;
-
-                // Ganancia crédito: MIN(cr, ganBruta)
-                const ganCrVenta = Math.min(cr, ganBruta);
+                const costoVenta  = (v.items||[]).reduce((s,i)=>(s + (Number(i.costo||0) * (Number(i.cantidad)||1))), 0);
+                const dineroRecup = (v.items||[]).reduce((s,i)=>s+Number(i.dineroRecuperado||0), 0) || costoVenta;
+                const ganBruta    = Math.max(0, total - dineroRecup);
+                const esPagadoCr  = cr > 0 && ventasCreditoPagadas.has(String(v.id));
+                const pagosVenta  = _pagosPorVenta[String(v.id)] || 0;
+                const cobradoEf   = ef + pagosVenta;
+                const ganEfVenta  = cobradoEf > dineroRecup ? Math.min(cobradoEf - dineroRecup, ganBruta) : 0;
+                const ganCrVenta  = Math.max(0, ganBruta - ganEfVenta);
 
                 if (_resumenFiltro === 'credito'  && (cr <= 0 || esPagadoCr)) return;
                 if (_resumenFiltro === 'efectivo' && ef <= 0) return;
 
                 if (_resumenFiltro === 'efectivo') {
-                    vTotal += ef; vEf += ef; vCr += cr; vGanTotal += ganEfVenta; vGanEf += ganEfVenta;
+                    vTotal += ef; vEf += ef; vCr += cr;
+                    vGanEf += ganEfVenta; vGanTotal += ganEfVenta;
                 } else if (_resumenFiltro === 'credito') {
-                    vTotal += cr; vEf += ef; vCr += cr; vGanTotal += ganCrVenta; vGanCr += ganCrVenta;
+                    vTotal += cr; vEf += ef; vCr += cr;
+                    vGanCr += ganCrVenta; vGanTotal += ganCrVenta;
                 } else {
                     vTotal += total; vEf += ef; vCr += cr;
                     vGanEf += ganEfVenta; vGanCr += ganCrVenta;
