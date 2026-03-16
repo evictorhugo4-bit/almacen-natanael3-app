@@ -408,10 +408,17 @@ img, video { max-width: 100%; height: auto; }
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Exo+2:ital,wght@0,400;0,600;0,700;0,800;0,900;1,700;1,800;1,900&display=swap');
+    * {
+    font-family: 'BibliasSL', 'Exo 2', sans-serif;
+    }
+    @font-face {
+        font-family: 'BibliasSL';
+        src: local('BibliasSL'), local('Biblias SL'), local('BIBLIASL');
+    }
         
         body {
-    font-family: 'Inter', sans-serif;
+    font-family: 'BibliasSL', 'Exo 2', sans-serif;
     background-color: #0f172a;
     color: #ffffff;
     overflow-x: hidden;
@@ -1742,6 +1749,7 @@ GUARDAR PRODUCTO
                     <button id="tabBtnResumen" onclick="switchStatsTab('resumen')" class="px-5 py-2 rounded-xl font-black text-xs uppercase bg-slate-700 text-slate-300 hover:bg-slate-600 btn-action">Resumen</button>
                     <button id="tabBtnVentas" onclick="switchStatsTab('ventas')" class="px-5 py-2 rounded-xl font-black text-xs uppercase bg-emerald-500 text-black btn-action">Ventas</button>
                     <button id="tabBtnProductos" onclick="switchStatsTab('productos')" class="px-5 py-2 rounded-xl font-black text-xs uppercase bg-slate-700 text-slate-300 hover:bg-slate-600 btn-action">Productos</button>
+                    <button id="tabBtnRegistros" onclick="switchStatsTab('registros')" class="px-5 py-2 rounded-xl font-black text-xs uppercase bg-slate-700 text-slate-300 hover:bg-slate-600 btn-action">Registros</button>
                 </div>
             </div>
             <!-- Filtros fecha (solo ventas) -->
@@ -1828,6 +1836,7 @@ GUARDAR PRODUCTO
                 </div>
                 <button onclick="renderResumen()" class="px-4 py-2 bg-emerald-500 text-black font-black text-xs rounded-xl hover:bg-emerald-400 btn-action">FILTRAR</button>
                 <button onclick="debugResumen()" class="px-3 py-2 bg-slate-600 hover:bg-slate-500 text-yellow-400 font-black text-[10px] rounded-xl btn-action">🔍 DEBUG</button>
+                <button onclick="resumenSetPeriodo(1)"  class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-black text-[10px] rounded-xl btn-action">HOY</button>
                 <button onclick="resumenSetPeriodo(7)"  class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-black text-[10px] rounded-xl btn-action">7D</button>
                 <button onclick="resumenSetPeriodo(30)" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-black text-[10px] rounded-xl btn-action">30D</button>
                 <button onclick="resumenSetPeriodo(90)" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-black text-[10px] rounded-xl btn-action">90D</button>
@@ -2012,8 +2021,51 @@ GUARDAR PRODUCTO
                 </div>
             </div>
 
-        </div></div><!-- /tabProductos -->
-    </div>
+        </div><!-- /tabProductos -->
+
+        <!-- TAB REGISTROS -->
+        <div id="tabRegistros" class="hidden space-y-4">
+            <!-- Filtros -->
+            <div class="glass-card rounded-2xl p-4 border border-slate-700 flex flex-wrap gap-3 items-end">
+                <div class="flex flex-col gap-1">
+                    <label class="text-[9px] font-black text-emerald-500 uppercase">Desde</label>
+                    <input type="datetime-local" id="regDesde" onchange="renderRegistros()" class="text-xs px-2 py-1.5 rounded-lg" style="background:#0f172a;border:1px solid #334155;color:white;">
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[9px] font-black text-emerald-500 uppercase">Hasta</label>
+                    <input type="datetime-local" id="regHasta" onchange="renderRegistros()" class="text-xs px-2 py-1.5 rounded-lg" style="background:#0f172a;border:1px solid #334155;color:white;">
+                </div>
+                <button onclick="renderRegistros()" class="px-4 py-2 bg-emerald-500 text-black font-black text-xs rounded-xl hover:bg-emerald-400 btn-action">FILTRAR</button>
+                <button onclick="regSetPeriodo(1)"  class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-black text-[10px] rounded-xl btn-action">HOY</button>
+                <button onclick="regSetPeriodo(7)"  class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-black text-[10px] rounded-xl btn-action">7D</button>
+                <button onclick="regSetPeriodo(30)" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-black text-[10px] rounded-xl btn-action">30D</button>
+                <button onclick="document.getElementById('regDesde').value='';document.getElementById('regHasta').value='';renderRegistros();" class="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 font-black text-[10px] rounded-xl btn-action">TODO</button>
+            </div>
+            <!-- Tabla -->
+            <div class="glass-card rounded-2xl border border-slate-700 overflow-x-auto">
+                <table class="w-full text-[10px]">
+                    <thead>
+                        <tr style="border-bottom:2px solid #334155;background:rgba(15,23,42,0.8);">
+                            <th style="padding:10px 12px;text-align:left;font-size:9px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Operación</th>
+                            <th style="padding:10px 12px;text-align:left;font-size:9px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Cliente/Proveedor</th>
+                            <th style="padding:10px 12px;text-align:left;font-size:9px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Fecha y Hora</th>
+                            <th style="padding:10px 12px;text-align:left;font-size:9px;font-weight:900;color:#64748b;text-transform:uppercase;letter-spacing:.08em;">Producto/Categoría</th>
+                            <th style="padding:10px 12px;text-align:right;font-size:9px;font-weight:900;color:#34d399;text-transform:uppercase;letter-spacing:.08em;">Ef $</th>
+                            <th style="padding:10px 12px;text-align:right;font-size:9px;font-weight:900;color:#f87171;text-transform:uppercase;letter-spacing:.08em;">Cr $</th>
+                            <th style="padding:10px 12px;text-align:right;font-size:9px;font-weight:900;color:#e2e8f0;text-transform:uppercase;letter-spacing:.08em;">Total $</th>
+                            <th style="padding:10px 12px;text-align:right;font-size:9px;font-weight:900;color:#6ee7b7;text-transform:uppercase;letter-spacing:.08em;">Saldo Ef</th>
+                            <th style="padding:10px 12px;text-align:right;font-size:9px;font-weight:900;color:#fcd34d;text-transform:uppercase;letter-spacing:.08em;">Saldo Cr</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaRegistrosBody">
+                        <tr><td colspan="9" class="py-8 text-center text-slate-500 font-bold uppercase text-[10px]">Seleccioná un período para ver registros</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div id="tablaRegistrosTotales" class="grid grid-cols-3 gap-3"></div>
+        </div>
+
+    </div><!-- /vistaEstadisticas -->
 
 
 
@@ -2159,17 +2211,14 @@ GUARDAR PRODUCTO
                 </div>
 <div class="relative">
     <label class="text-[10px] font-black text-emerald-500 uppercase tracking-widest block mb-1">Género</label>
-
-
-  <input type="text"
-id="inputIngEgrGenero"
-placeholder="Buscar género..."
-autocomplete="off"
-onfocus="abrirGeneroInstantaneo()"
-class="w-full bg-slate-900 border-2 border-slate-800 p-3 rounded-xl text-white font-bold focus:border-emerald-500 outline-none uppercase text-xs">
-
-
-
+    <input type="text"
+        id="inputIngEgrGenero"
+        placeholder="Buscar género..."
+        autocomplete="off"
+        oninput="filtrarGeneroIngEgr(this.value)"
+        onfocus="filtrarGeneroIngEgr(this.value)"
+        onblur="setTimeout(()=>document.getElementById('ddGeneroIngEgr').classList.add('hidden'),150)"
+        class="w-full bg-slate-900 border-2 border-slate-800 p-3 rounded-xl text-white font-bold focus:border-emerald-500 outline-none uppercase text-xs">
     <div id="ddGeneroIngEgr" class="hidden absolute z-50 w-full bg-slate-800 border border-slate-600 rounded-xl mt-1 max-h-40 overflow-y-auto custom-scrollbar shadow-xl"></div>
 </div>
 
@@ -8937,6 +8986,7 @@ container.innerHTML = grupos.map(({c, realIdx, extraItems}) => {
         let _catsEgrSheet      = [];
         let _generosEgrNegSheet = [];
         let _generosEgrSheet   = [];
+        let _generosIngSheet   = [];
 
         // Reconstruir desde DB si las listas están vacías
         
@@ -9095,12 +9145,32 @@ function filtrarGeneroEgr(query) {
             document.getElementById('inputIngEgrProveedor').value = '';
             document.getElementById('inputIngEgrConcepto').value = '';
             if (document.getElementById('inputIngEgrDetalle')) document.getElementById('inputIngEgrDetalle').value = '';
+            if (document.getElementById('inputIngEgrGenero')) document.getElementById('inputIngEgrGenero').value = '';
             document.getElementById('inputIngEgrEfectivo').value = '';
             document.getElementById('ingEgrCredito').value = '';
             document.getElementById('ingEgrTotal').textContent = '$0';
             if (document.getElementById('inputIngEgrProveedorTarjeta')) document.getElementById('inputIngEgrProveedorTarjeta').value = '';
             seleccionarFormaPagoIngEgr('EFECTIVO');
             resetTicketIngEgr();
+            // Pre-poblar dropdown de género
+            const esEgr = tipo === 'egreso';
+            // Si la lista del sheet está vacía, extraerla de los registros ya cargados
+            let lista = esEgr ? (_generosEgrSheet||[]) : (_generosIngSheet||[]);
+            if (!lista.length) {
+                const db = esEgr ? (_sheetEgresos||[]) : (_sheetIngresos||[]);
+                const genSet = new Set();
+                db.forEach(r => { const g = String(r.genero||'').trim().toUpperCase(); if (g) genSet.add(g); });
+                lista = [...genSet].sort();
+            }
+            console.log('[GENERO] tipo:', tipo, '| lista:', lista);
+            const dd = document.getElementById('ddGeneroIngEgr');
+            if (dd && lista.length) {
+                const color = esEgr ? 'hover:bg-red-500/20' : 'hover:bg-emerald-500/20';
+                dd.innerHTML = lista.map(g =>
+                    `<div class="px-3 py-2 text-xs font-bold text-white ${color} cursor-pointer uppercase"
+                    onmousedown="selGeneroIngEgr('${g.replace(/'/g,"\\'")}')">${g}</div>`
+                ).join('');
+            }
             toggleModal('modalIngEgr', true);
             lucide.createIcons();
         }
@@ -12190,13 +12260,16 @@ const catsMap = {};
                     data.ingresos.forEach(row => {
                         const sc = String(row['SUPER CATEGORIA'] || row['Supercategoria'] || row['Supercategoría'] || '').trim().toUpperCase();
                         const ca = String(row['CATEGORIA'] || row['Categoria'] || row['Categoría'] || '').trim().toUpperCase();
+                        const ge = String(row['GENERO'] || row['Genero'] || row['Género'] || '').trim().toUpperCase();
                         if (sc) supercatsSet.add(sc);
+                        if (ge) generosMap[ge] = true;
                         if (sc && ca) {
                             if (!catsMap[sc]) catsMap[sc] = new Set();
                             catsMap[sc].add(ca);
                         }
                     });
                    _supercatsIngSheet = [...supercatsSet].sort();
+                   _generosIngSheet   = Object.keys(generosMap).sort();
 
 _catsIngSheet = {};
 
@@ -12457,6 +12530,7 @@ if (indicator) indicator.classList.remove('hidden');
                         const reg = { id, idSheet:idIngreso, fecha:fechaDisplay, fechaISO:fechaRaw,
                             proveedor:String(row['SUPER CATEGORIA']||row['Supercategoria']||'').trim(),
                             concepto:String(row['CATEGORIA']||row['Categoria']||'').trim(),
+                            genero:String(row['GENERO']||row['Genero']||row['Género']||'').trim().toUpperCase(),
                             detalle:String(row['DETALLE']||row['Detalle']||'').trim(),
                             estado:String(row['ESTADO']||'').trim(),
                             formaPago:String(row['FORMA DE PAGO']||'').trim(),
@@ -12467,6 +12541,8 @@ if (indicator) indicator.classList.remove('hidden');
                         const idx = _sheetIngresos.findIndex(r=>r.id===id);
                         if(idx>=0){_sheetIngresos[idx]={..._sheetIngresos[idx],...reg};ac++;}else{_sheetIngresos.push(reg);ag++;}
                     });
+                    // Extraer géneros únicos de ingresos
+                    _generosIngSheet = [...new Set(_sheetIngresos.map(r=>r.genero).filter(Boolean))].sort();
                     if(ag>0||ac>0){const v=document.getElementById('vistaIngresos');if(v&&!v.classList.contains('hidden'))renderIngEgr('ingreso');}
                 }
                 // Egresos
@@ -12485,6 +12561,7 @@ if (indicator) indicator.classList.remove('hidden');
                         const reg={id,idSheet:idGasto,fecha:fechaDisplay,fechaISO:fechaRaw,
                             proveedor:String(row['SUPER CATEGORIA']||row['Supercategoria']||'').trim(),
                             concepto:String(row['CATEGORIA']||row['Categoria']||'').trim(),
+                            genero:String(row['GENERO']||row['Genero']||row['Género']||'').trim().toUpperCase(),
                             detalle:String(row['DETALLE']||row['Detalle']||'').trim(),
                             estado:String(row['ESTADO']||'').trim(),
                             formaPago:String(row['FORMA DE PAGO']||'').trim(),
@@ -12495,6 +12572,8 @@ if (indicator) indicator.classList.remove('hidden');
                         const idx=_sheetEgresos.findIndex(r=>r.id===id);
                         if(idx>=0){_sheetEgresos[idx]={..._sheetEgresos[idx],...reg};ac++;}else{_sheetEgresos.push(reg);ag++;}
                     });
+                    // Extraer géneros únicos de egresos
+                    _generosEgrSheet = [...new Set(_sheetEgresos.map(r=>r.genero).filter(Boolean))].sort();
                     if(ag>0||ac>0){const v=document.getElementById('vistaEgresos');if(v&&!v.classList.contains('hidden'))renderIngEgr('egreso');}
                 }
                 // Pagos
@@ -13331,8 +13410,10 @@ console.log("FILTRADAS:", filtradas.length);
 
         function resumenSetPeriodo(dias) {
             const hasta = new Date();
-            const desde = new Date(); desde.setDate(desde.getDate() - dias);
-            const fmt = d => d.toISOString().slice(0,16);
+            const desde = new Date();
+            if (dias === 1) { desde.setHours(0,0,0,0); }
+            else { desde.setDate(desde.getDate() - dias); }
+            const fmt = d => new Date(d - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
             document.getElementById('resumenDesde').value = fmt(desde);
             document.getElementById('resumenHasta').value = fmt(hasta);
             renderResumen();
@@ -13871,14 +13952,16 @@ console.log("FILTRADAS:", filtradas.length);
 
         function switchStatsTab(tab) {
             _statsTab = tab;
-            const isVentas   = tab === 'ventas';
-            const isProductos= tab === 'productos';
-            const isResumen  = tab === 'resumen';
+            const isVentas    = tab === 'ventas';
+            const isProductos = tab === 'productos';
+            const isResumen   = tab === 'resumen';
+            const isRegistros = tab === 'registros';
 
             // Tabs visual
             document.getElementById('tabBtnVentas').className    = 'px-5 py-2 rounded-xl font-black text-xs uppercase btn-action ' + (isVentas    ? 'bg-emerald-500 text-black' : 'bg-slate-700 text-slate-300 hover:bg-slate-600');
             document.getElementById('tabBtnProductos').className  = 'px-5 py-2 rounded-xl font-black text-xs uppercase btn-action ' + (isProductos ? 'bg-blue-500 text-black'    : 'bg-slate-700 text-slate-300 hover:bg-slate-600');
             document.getElementById('tabBtnResumen').className    = 'px-5 py-2 rounded-xl font-black text-xs uppercase btn-action ' + (isResumen   ? 'bg-amber-500 text-black'   : 'bg-slate-700 text-slate-300 hover:bg-slate-600');
+            document.getElementById('tabBtnRegistros').className  = 'px-5 py-2 rounded-xl font-black text-xs uppercase btn-action ' + (isRegistros ? 'bg-purple-500 text-black'  : 'bg-slate-700 text-slate-300 hover:bg-slate-600');
 
             // Filtros fecha solo en ventas
             const filtros = document.getElementById('statsFiltrosFecha');
@@ -13890,13 +13973,283 @@ console.log("FILTRADAS:", filtradas.length);
                 const el = document.getElementById(id);
                 if (el) el.classList.toggle('hidden', !isVentas);
             });
-            const tabProd    = document.getElementById('tabProductos');
-            const tabResumen = document.getElementById('tabResumen');
-            if (tabProd)    tabProd.classList.toggle('hidden', !isProductos);
-            if (tabResumen) tabResumen.classList.toggle('hidden', !isResumen);
+            const tabProd      = document.getElementById('tabProductos');
+            const tabResumen   = document.getElementById('tabResumen');
+            const tabRegistros = document.getElementById('tabRegistros');
+            if (tabProd)      tabProd.classList.toggle('hidden', !isProductos);
+            if (tabResumen)   tabResumen.classList.toggle('hidden', !isResumen);
+            if (tabRegistros) tabRegistros.classList.toggle('hidden', !isRegistros);
 
             if (isProductos) renderEstadisticasProductos();
             if (isResumen)   renderResumen();
+            if (isRegistros) renderRegistros();
+        }
+
+        function regSetPeriodo(dias) {
+            const hasta = new Date();
+            const desde = new Date(); desde.setDate(desde.getDate() - (dias - 1)); desde.setHours(0,0,0,0);
+            const fmt = d => new Date(d - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+            document.getElementById('regDesde').value = fmt(desde);
+            document.getElementById('regHasta').value = fmt(hasta);
+            renderRegistros();
+        }
+
+        // Estado de checks: idx → 'ok' | 'err' | null
+        const _regChecks = {};
+        function toggleRegCheck(idx) {
+            const btn  = document.getElementById('reg-check-'+idx);
+            const icon = document.getElementById('reg-check-icon-'+idx);
+            if (!btn || !icon) return;
+            const estado = _regChecks[idx];
+            if (!estado) {
+                _regChecks[idx] = 'ok';
+                btn.style.background  = '#10b981';
+                btn.style.borderColor = '#10b981';
+                icon.textContent = '✓';
+                icon.style.color = '#000';
+            } else if (estado === 'ok') {
+                _regChecks[idx] = 'err';
+                btn.style.background  = '#ef4444';
+                btn.style.borderColor = '#ef4444';
+                icon.textContent = '✗';
+                icon.style.color = '#fff';
+            } else {
+                _regChecks[idx] = null;
+                btn.style.background  = 'transparent';
+                btn.style.borderColor = '#475569';
+                icon.textContent = '';
+            }
+        }
+
+        function renderRegistros() {
+            const desde = document.getElementById('regDesde').value;
+            const hasta = document.getElementById('regHasta').value;
+            const tbody = document.getElementById('tablaRegistrosBody');
+            const totEl = document.getElementById('tablaRegistrosTotales');
+            if (!tbody) return;
+
+            const fdTs = desde ? new Date(desde).getTime() : null;
+            const fhTs = hasta ? new Date(hasta).getTime() : null;
+
+            const enRango = fechaRaw => {
+                if (!fechaRaw) return !fdTs && !fhTs;
+                const ts = new Date(fechaRaw).getTime();
+                if (fdTs && ts < fdTs) return false;
+                if (fhTs && ts > fhTs) return false;
+                return true;
+            };
+
+            const fmtFecha = raw => {
+                if (!raw) return '—';
+                const d = new Date(raw);
+                if (isNaN(d)) return raw;
+                return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) + ' ' +
+                       d.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+            };
+
+            const rows = [];
+
+            // ── VENTAS — una fila por ítem ──
+            const todasV = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
+            const vVistas = new Set();
+            todasV.forEach(v => {
+                if (!enRango(v.fechaISO||v.fecha) || vVistas.has(v.id)) return;
+                vVistas.add(v.id);
+                const ef = Number(v.efectivo||0), cr = Number(v.deuda||0);
+                const items = v.items||[];
+                if (items.length === 0) {
+                    rows.push({ tipo:'VENTA', color:'#10b981', quien: v.cliente||'—', fecha: v.fechaISO||v.fecha, detalle:'—', prodFotoKey:'', ef, cr, tot: Number(v.total||0), ts: new Date(v.fechaISO||v.fecha).getTime(), esEgreso: false });
+                } else {
+                    items.forEach((it, i) => {
+                        rows.push({ tipo:'VENTA', color:'#10b981', quien: v.cliente||'—', fecha: v.fechaISO||v.fecha, detalle: it.nombre||'—', prodFotoKey: String(it.nombre||'').trim().toUpperCase(), ef: i===0?ef:0, cr: i===0?cr:0, tot: Number(it.precio||0)*Number(it.cantidad||1), ts: new Date(v.fechaISO||v.fecha).getTime(), esEgreso: false });
+                    });
+                }
+            });
+
+            // ── COMPRAS — una fila por ítem ──
+            (_sheetCompras||[]).forEach(c => {
+                if (!enRango(c.fechaISO||c.fecha)) return;
+                const ef = Number(c.efectivo||0), cr = Number(c.credito||0);
+                const items = c.items||[];
+                if (items.length === 0) {
+                    rows.push({ tipo:'COMPRA', color:'#f97316', quien: c.proveedor||'—', fecha: c.fechaISO||c.fecha, detalle:'—', prodFotoKey:'', ef, cr, tot: Number(c.total||0)||ef+cr, ts: new Date(c.fechaISO||c.fecha).getTime(), esEgreso: true });
+                } else {
+                    items.forEach((it, i) => {
+                        rows.push({ tipo:'COMPRA', color:'#f97316', quien: c.proveedor||'—', fecha: c.fechaISO||c.fecha, detalle: it.nombre||'—', prodFotoKey: String(it.nombre||'').trim().toUpperCase(), ef: i===0?ef:0, cr: i===0?cr:0, tot: Number(it.subtotal||it.costo||0)*Number(it.cantidad||1), ts: new Date(c.fechaISO||c.fecha).getTime(), esEgreso: true });
+                    });
+                }
+            });
+
+            // ── INGRESOS ──
+            (_sheetIngresos||[]).forEach(r => {
+                if (!enRango(r.fechaISO||r.fecha)) return;
+                const ef = Number(r.efectivo||0), cr = Number(r.credito||0), tot = Number(r.total||0);
+                rows.push({ tipo:'INGRESO', color:'#3b82f6', quien: '—', fecha: r.fechaISO||r.fecha, detalle: r.concepto||r.proveedor||'—', prodFotoKey:'', ef, cr, tot, ts: new Date(r.fechaISO||r.fecha).getTime(), esEgreso: false });
+            });
+
+            // ── EGRESOS ──
+            (_sheetEgresos||[]).forEach(r => {
+                if (!enRango(r.fechaISO||r.fecha)) return;
+                const ef = Number(r.efectivo||0), cr = Number(r.credito||0), tot = Number(r.total||0);
+                rows.push({ tipo:'EGRESO', color:'#ef4444', quien: '—', fecha: r.fechaISO||r.fecha, detalle: r.concepto||r.proveedor||'—', prodFotoKey:'', ef, cr, tot, ts: new Date(r.fechaISO||r.fecha).getTime(), esEgreso: true });
+            });
+
+            // ── INGRESOS NEGOCIO ──
+            (_sheetIngresosNegocio||[]).forEach(r => {
+                if (!enRango(r.fechaISO||r.fecha)) return;
+                const ef = Number(r.efectivo||0), cr = Number(r.credito||0), tot = Number(r.total||0);
+                rows.push({ tipo:'ING. NEGOCIO', color:'#06b6d4', quien: r.cliente||r.proveedor||'—', fecha: r.fechaISO||r.fecha, detalle: r.concepto||'—', prodFotoKey:'', ef, cr, tot, ts: new Date(r.fechaISO||r.fecha).getTime(), esEgreso: false });
+            });
+
+            // ── EGRESOS NEGOCIO ──
+            (_sheetEgresosNegocio||[]).forEach(r => {
+                if (!enRango(r.fechaISO||r.fecha)) return;
+                const ef = Number(r.efectivo||0), cr = Number(r.credito||0), tot = Number(r.total||0);
+                rows.push({ tipo:'EGR. NEGOCIO', color:'#ec4899', quien: r.cliente||r.proveedor||'—', fecha: r.fechaISO||r.fecha, detalle: r.concepto||'—', prodFotoKey:'', ef, cr, tot, ts: new Date(r.fechaISO||r.fecha).getTime(), esEgreso: true });
+            });
+
+            // ── PAGO VENTAS ──
+            (_pagoVentasSheet||[]).forEach(p => {
+                if (!enRango(p.fecha||p.fechaOrig)) return;
+                const m = Number(p.monto||p.MONTO||0);
+                rows.push({ tipo:'PAGO VENTAS', color:'#34d399', quien: p.cliente||'—', fecha: p.fecha||p.fechaOrig, detalle: p.producto||'—', prodFotoKey:'', ef: m, cr: 0, tot: m, ts: new Date(p.fecha||p.fechaOrig).getTime(), esEgreso: false });
+            });
+
+            // ── PAGO COMPRAS ──
+            (_sheetPagoCompras||[]).forEach(p => {
+                if (!enRango(p.fecha)) return;
+                const m = Number(p.monto||p.MONTO||0);
+                rows.push({ tipo:'PAGO COMPRAS', color:'#fb923c', quien: p.proveedor||'—', fecha: p.fecha, detalle: '—', prodFotoKey:'', ef: m, cr: 0, tot: m, ts: new Date(p.fecha).getTime(), esEgreso: true });
+            });
+
+            // ── PAGO INGRESOS ──
+            (_sheetPagoIngresos||[]).forEach(p => {
+                if (!enRango(p.fecha)) return;
+                const m = Number(p.monto||p.MONTO||0);
+                rows.push({ tipo:'PAGO INGRESOS', color:'#60a5fa', quien: '—', fecha: p.fecha, detalle: '—', prodFotoKey:'', ef: m, cr: 0, tot: m, ts: new Date(p.fecha).getTime(), esEgreso: false });
+            });
+
+            // ── PAGO EGRESOS ──
+            (_sheetPagoEgresos||[]).forEach(p => {
+                if (!enRango(p.FECHA||p.fecha)) return;
+                const m = Number(p.monto||p.MONTO||0);
+                rows.push({ tipo:'PAGO EGRESOS', color:'#f87171', quien: '—', fecha: p.FECHA||p.fecha, detalle: '—', prodFotoKey:'', ef: m, cr: 0, tot: m, ts: new Date(p.FECHA||p.fecha).getTime(), esEgreso: true });
+            });
+
+            // ── PAGO ING. NEGOCIO ──
+            (_sheetPagoIngNeg||[]).forEach(p => {
+                if (!enRango(p.fecha||p.fechaISO)) return;
+                const m = Number(p.monto||p.MONTO||0);
+                rows.push({ tipo:'PAGO ING.NEG', color:'#22d3ee', quien: '—', fecha: p.fecha||p.fechaISO, detalle: '—', prodFotoKey:'', ef: m, cr: 0, tot: m, ts: new Date(p.fecha||p.fechaISO).getTime(), esEgreso: false });
+            });
+
+            // ── PAGO EGR. NEGOCIO ──
+            (_pagoEgrNegSheet||[]).forEach(p => {
+                if (!enRango(p.fecha)) return;
+                const m = Number(p.monto||0);
+                rows.push({ tipo:'PAGO EGR.NEG', color:'#f472b6', quien: '—', fecha: p.fecha, detalle: '—', prodFotoKey:'', ef: m, cr: 0, tot: m, ts: new Date(p.fecha).getTime(), esEgreso: true });
+            });
+
+            // Ordenar por fecha desc
+            rows.sort((a,b) => (b.ts||0) - (a.ts||0));
+
+            if (!rows.length) {
+                tbody.innerHTML = '<tr><td colspan="7" class="py-8 text-center text-slate-500 font-bold uppercase">Sin registros en el período</td></tr>';
+                if (totEl) totEl.innerHTML = '';
+                return;
+            }
+
+            // Mapa de clientes para fotos
+            const _cliMap = {};
+            (typeof clientesDB !== 'undefined' ? clientesDB : []).forEach(c => {
+                _cliMap[String(c.nombre||'').trim().toUpperCase()] = c;
+            });
+            const _prodMap = {};
+            (_sheetProductos||[]).forEach(p => {
+                _prodMap[String(p.nombre||'').trim().toUpperCase()] = p;
+            });
+
+            // Calcular saldos acumulados (ordenado por fecha desc = más reciente primero)
+            // Para saldo acumulado calculamos de atrás hacia adelante
+            let saldoEf = 0, saldoCr = 0;
+            // Primero calcular totales para empezar desde 0 en orden desc
+            rows.forEach(r => {
+                if (r.esEgreso) { saldoEf -= r.ef; saldoCr -= r.cr; }
+                else            { saldoEf += r.ef; saldoCr += r.cr; }
+            });
+            // Ahora asignar saldo por fila de arriba a abajo (desc)
+            let acumEf = saldoEf, acumCr = saldoCr;
+            rows.forEach(r => {
+                r.saldoEf = acumEf;
+                r.saldoCr = acumCr;
+                if (r.esEgreso) { acumEf += r.ef; acumCr += r.cr; }
+                else            { acumEf -= r.ef; acumCr -= r.cr; }
+            });
+
+            tbody.innerHTML = rows.map((r, idx) => {
+                const cliObj = _cliMap[String(r.quien||'').trim().toUpperCase()];
+                const cliFoto = cliObj?.foto
+                    ? `<img src="${driveUrl(cliObj.foto)}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;border:2px solid ${r.color}33;" onerror="this.style.display='none'">`
+                    : `<span style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,${r.color}33,#1e293b);border:2px solid ${r.color}55;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:${r.color};flex-shrink:0;">${String(r.quien||'?')[0].toUpperCase()}</span>`;
+
+                const prodObj = _prodMap[r.prodFotoKey||''];
+                const prodFoto = (prodObj?.foto||prodObj?.imagen)
+                    ? `<img src="${driveUrl(prodObj.foto||prodObj.imagen)}" style="width:26px;height:26px;border-radius:6px;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'">`
+                    : `<span style="width:26px;height:26px;border-radius:6px;background:${r.color}22;border:1px solid ${r.color}44;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;flex-shrink:0;color:${r.color};">${r.tipo[0]}</span>`;
+
+                const sEfColor = r.saldoEf >= 0 ? '#10b981' : '#ef4444';
+                const sCrColor = r.saldoCr >= 0 ? '#f59e0b' : '#ef4444';
+                const rowBg = idx % 2 === 0 ? 'background:rgba(15,23,42,0.4);' : '';
+
+                return `<tr style="border-bottom:1px solid #1e293b;${rowBg}transition:background .1s;" onmouseover="this.style.background='rgba(30,41,59,0.6)'" onmouseout="this.style.background='${idx%2===0?'rgba(15,23,42,0.4)':'transparent'}'" id="reg-row-${idx}">
+                    <td style="padding:10px 12px;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <button onclick="toggleRegCheck(${idx})" id="reg-check-${idx}"
+                                style="width:20px;height:20px;border-radius:5px;border:2px solid #334155;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .15s;">
+                                <span id="reg-check-icon-${idx}" style="font-size:11px;line-height:1;font-weight:900;"></span>
+                            </button>
+                            <span style="font-size:10px;font-weight:900;color:${r.color};letter-spacing:.04em;text-shadow:0 0 8px ${r.color}55;">${r.tipo}</span>
+                        </div>
+                    </td>
+                    <td style="padding:10px 12px;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            ${cliFoto}
+                            <span style="font-size:11px;font-weight:800;color:#f1f5f9;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.01em;">${r.quien}</span>
+                        </div>
+                    </td>
+                    <td style="padding:10px 12px;font-size:10px;font-weight:700;color:#64748b;white-space:nowrap;letter-spacing:.01em;">${fmtFecha(r.fecha)}</td>
+                    <td style="padding:10px 12px;">
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            ${prodFoto}
+                            <span style="font-size:11px;font-weight:700;color:#cbd5e1;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.detalle}</span>
+                        </div>
+                    </td>
+                    <td style="padding:10px 12px;text-align:right;font-size:11px;font-weight:900;color:#34d399;font-family:monospace;letter-spacing:.02em;">${r.ef>0?'$'+Utils.fmt(r.ef):'<span style="color:#334155;">—</span>'}</td>
+                    <td style="padding:10px 12px;text-align:right;font-size:11px;font-weight:900;color:#f87171;font-family:monospace;letter-spacing:.02em;">${r.cr>0?'$'+Utils.fmt(r.cr):'<span style="color:#334155;">—</span>'}</td>
+                    <td style="padding:10px 12px;text-align:right;font-size:11px;font-weight:900;color:#e2e8f0;font-family:monospace;letter-spacing:.02em;">$${Utils.fmt(r.tot)}</td>
+                    <td style="padding:10px 12px;text-align:right;font-size:12px;font-weight:900;font-family:monospace;color:${sEfColor};letter-spacing:.02em;text-shadow:0 0 6px ${sEfColor}44;">$${Utils.fmt(r.saldoEf)}</td>
+                    <td style="padding:10px 12px;text-align:right;font-size:12px;font-weight:900;font-family:monospace;color:${sCrColor};letter-spacing:.02em;text-shadow:0 0 6px ${sCrColor}44;">$${Utils.fmt(r.saldoCr)}</td>
+                </tr>`;
+            }).join('');
+
+            // Totales
+            const sumEf  = rows.reduce((s,r)=>s+r.ef, 0);
+            const sumCr  = rows.reduce((s,r)=>s+r.cr, 0);
+            const sumTot = rows.reduce((s,r)=>s+r.tot, 0);
+            if (totEl) totEl.innerHTML = `
+                <div class="glass-card rounded-xl p-3 text-center border border-emerald-500/30">
+                    <p class="text-[8px] font-black text-emerald-400 uppercase">Total Efectivo</p>
+                    <p class="text-base font-black text-emerald-400 font-mono">$${Utils.fmt(sumEf)}</p>
+                </div>
+                <div class="glass-card rounded-xl p-3 text-center border border-red-500/30">
+                    <p class="text-[8px] font-black text-red-400 uppercase">Total Crédito</p>
+                    <p class="text-base font-black text-red-400 font-mono">$${Utils.fmt(sumCr)}</p>
+                </div>
+                <div class="glass-card rounded-xl p-3 text-center border border-slate-600">
+                    <p class="text-[8px] font-black text-white uppercase">Total General</p>
+                    <p class="text-base font-black text-white font-mono">$${Utils.fmt(sumTot)}</p>
+                    <p class="text-[8px] text-slate-500">${rows.length} registros</p>
+                </div>`;
         }
 
         // ══════════════════════════════════════════
