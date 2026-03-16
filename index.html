@@ -13127,40 +13127,64 @@ console.log("FILTRADAS:", filtradas.length);
             const filtroHasta = document.getElementById('provStatHasta')?.value || '';
             const fdNum = filtroDesde ? parseFechaNum(filtroDesde) : null;
             const fhNum = filtroHasta ? parseFechaNum(filtroHasta) : null;
+            // Timestamps reales para comparación correcta con fechas UTC del sheet
+            const fdTs = filtroDesde ? new Date(filtroDesde).getTime() : null;
+            const fhTs = filtroHasta ? new Date(filtroHasta).getTime() : null;
 
             // ── PRE-INDEXAR ventas y compras por nombre (una sola vez) ──
             const todasV = [...historial, ...(_sheetVentas||[]).filter(v=>!historial.some(h=>h.id===v.id))];
             const todasC = _sheetCompras || [];
+            // DEBUG nombres en compras que contengan SEDAL
+            const _sedal = [];
+            todasC.forEach(cp => { (cp.items||[]).forEach(it => { if (String(it.nombre||'').toUpperCase().includes('SEDAL')) _sedal.push({nombre:it.nombre, cantidad:it.cantidad, fecha:cp.fechaISO||cp.fecha}); }); });
+            if (_sedal.length) console.log('[DEBUG SEDAL en compras]:', _sedal);
 
             // Mapa: nombreUp → [{fechaNum, cantidad}]
             const ventasPorNombre = {};
             todasV.forEach(v => {
-                const fnum = parseFechaNum(v.fechaISO || v.fecha || '');
+                const fechaRaw = v.fechaISO || v.fecha || '';
+                const fnum = parseFechaNum(fechaRaw);
                 if (!fnum) return;
+                const ts = new Date(fechaRaw).getTime() || 0;
                 (v.items||[]).forEach(it => {
                     const n = String(it.nombre||'').trim().toUpperCase();
                     if (!n) return;
                     if (!ventasPorNombre[n]) ventasPorNombre[n] = [];
-                    ventasPorNombre[n].push({ fechaNum: fnum, cantidad: parseFloat(it.cantidad)||0 });
+                    ventasPorNombre[n].push({ fechaNum: fnum, ts, cantidad: parseFloat(it.cantidad)||0 });
                 });
             });
             const comprasPorNombre = {};
             todasC.forEach(cp => {
-                const fnum = parseFechaNum(cp.fechaISO || cp.fecha);
+                const fechaRaw = cp.fechaISO || cp.fecha || '';
+                const fnum = parseFechaNum(fechaRaw);
                 if (!fnum) return;
+                // Convertir a timestamp real para comparación correcta con timezone
+                const ts = new Date(fechaRaw).getTime() || 0;
                 (cp.items||[]).forEach(it => {
                     const n = String(it.nombre||'').trim().toUpperCase();
                     if (!n) return;
                     if (!comprasPorNombre[n]) comprasPorNombre[n] = [];
-                    comprasPorNombre[n].push({ fechaNum: fnum, cantidad: parseFloat(it.cantidad)||0 });
+                    comprasPorNombre[n].push({ fechaNum: fnum, ts, cantidad: parseFloat(it.cantidad)||0 });
                 });
             });
+            // DEBUG: mostrar claves de compras que contengan el proveedor seleccionado
+            const _dbgKeys = Object.keys(comprasPorNombre).filter(k => productos.some(p => String(p.nombre||'').trim().toUpperCase() === k));
+            console.log('[COMPRAS INDEX] productos del proveedor encontrados en compras:', _dbgKeys);
+            const _dbgMissing = productos.filter(p => !comprasPorNombre[String(p.nombre||'').trim().toUpperCase()]);
+            if (_dbgMissing.length) console.log('[COMPRAS INDEX] productos SIN compras indexadas:', _dbgMissing.map(p=>p.nombre));
+            // DEBUG fechas
+            console.log('[FILTRO] fdNum:', fdNum, '| fhNum:', fhNum);
+            const _sItems = comprasPorNombre['ACONDICIONADOR X10 ML SEDAL'] || [];
+            console.log('[SEDAL cItems]:', _sItems);
+            const _sVItems = ventasPorNombre['ACONDICIONADOR X10 ML SEDAL'] || [];
+            console.log('[SEDAL vItems]:', _sVItems);
 
             // ── Calcular kardex usando índices pre-construidos ──
             function calcKardexProd(prod) {
                 const nombreUp = String(prod.nombre||'').trim().toUpperCase();
                 const vItems = ventasPorNombre[nombreUp] || [];
                 const cItems = comprasPorNombre[nombreUp] || [];
+                const _dbg = nombreUp.includes('ACONDICIONADOR X10 ML SEDAL');
 
                 // Determinar stockBase y fechaRef
                 let stockBase, fechaRefRaw;
@@ -13175,30 +13199,37 @@ console.log("FILTRADAS:", filtradas.length);
                     fechaRefRaw = '';
                 }
                 const refNum = parseFechaNum(fechaRefRaw);
+                if (_dbg) console.log('[SEDAL KARDEX] stockBase:', stockBase, '| fechaRefRaw:', fechaRefRaw, '| refNum:', refNum, '| fdNum:', fdNum, '| fhNum:', fhNum, '| cItems:', cItems);
 
                 // Ajuste de stockBase si hay filtro DESDE posterior a refNum
                 let stockBaseAjustado = stockBase;
-                if (fdNum && refNum && fdNum > refNum) {
-                    cItems.forEach(it => { if (it.fechaNum > refNum && it.fechaNum < fdNum) stockBaseAjustado += it.cantidad; });
-                    vItems.forEach(it => { if (it.fechaNum > refNum && it.fechaNum < fdNum) stockBaseAjustado -= it.cantidad; });
+                if (fdTs && refNum) {
+                    const refTs = new Date(fechaRefRaw).getTime();
+                    if (fdTs > refTs) {
+                        cItems.forEach(it => { if (it.ts > refTs && it.ts < fdTs) stockBaseAjustado += it.cantidad; });
+                        vItems.forEach(it => { if (it.ts > refTs && it.ts < fdTs) stockBaseAjustado -= it.cantidad; });
+                    }
                 }
 
-                const refEfectivo = (fdNum && refNum && fdNum > refNum) ? null : refNum;
-                const baseEfectiva = (fdNum && refNum && fdNum > refNum) ? stockBaseAjustado : stockBase;
+                // Si hay filtro DESDE/HASTA explícito, ignorar refEfectivo completamente
+                const hayFiltroFechas = !!(fdTs || fhTs);
+                const refTs = fechaRefRaw ? new Date(fechaRefRaw).getTime() : null;
+                const refEfectivo = hayFiltroFechas ? null : refNum; // solo para compatibilidad sin filtro
+                const baseEfectiva = (fdTs && refTs && fdTs > refTs) ? stockBaseAjustado : stockBase;
 
-                // Kardex en rango
-                let saldo = refEfectivo ? baseEfectiva : baseEfectiva;
+                // Kardex en rango — usar timestamps reales para evitar problema de timezone
+                let saldo = baseEfectiva;
                 let totalCompras = 0, totalVentas = 0;
                 vItems.forEach(it => {
-                    if (refEfectivo && it.fechaNum <= refEfectivo) return;
-                    if (fdNum && it.fechaNum < fdNum) return;
-                    if (fhNum && it.fechaNum > fhNum) return;
+                    if (!hayFiltroFechas && refEfectivo && it.fechaNum <= refEfectivo) return;
+                    if (fdTs && it.ts < fdTs) return;
+                    if (fhTs && it.ts > fhTs) return;
                     saldo -= it.cantidad; totalVentas += it.cantidad;
                 });
                 cItems.forEach(it => {
-                    if (refEfectivo && it.fechaNum <= refEfectivo) return;
-                    if (fdNum && it.fechaNum < fdNum) return;
-                    if (fhNum && it.fechaNum > fhNum) return;
+                    if (!hayFiltroFechas && refEfectivo && it.fechaNum <= refEfectivo) return;
+                    if (fdTs && it.ts < fdTs) return;
+                    if (fhTs && it.ts > fhTs) return;
                     saldo += it.cantidad; totalCompras += it.cantidad;
                 });
 
@@ -13206,10 +13237,11 @@ console.log("FILTRADAS:", filtradas.length);
                 const _siEsperado = (prod.stockInicio !== null && prod.stockInicio !== undefined)
                     ? (parseFloat(prod.stockInicio) || 0)
                     : (parseFloat(prod.stock) || 0);
-                const _siRefNum = parseFechaNum(prod.fechaStockInicio || prod.fechaInicio || '');
+                const _siRefRaw = prod.fechaStockInicio || prod.fechaInicio || '';
+                const _siRefTs = _siRefRaw ? new Date(_siRefRaw).getTime() : null;
                 let _totCE = 0, _totVE = 0;
-                vItems.forEach(it => { if (!_siRefNum || it.fechaNum > _siRefNum) _totVE += it.cantidad; });
-                cItems.forEach(it => { if (!_siRefNum || it.fechaNum > _siRefNum) _totCE += it.cantidad; });
+                vItems.forEach(it => { if (!_siRefTs || it.ts > _siRefTs) _totVE += it.cantidad; });
+                cItems.forEach(it => { if (!_siRefTs || it.ts > _siRefTs) _totCE += it.cantidad; });
                 const stockEsperado = Math.round((_siEsperado + _totCE - _totVE) * 100) / 100;
 
                 return { stockInicial: _siEsperado, compras: totalCompras, ventas: totalVentas, stockActual: Math.round(saldo*100)/100, stockEsperado };
